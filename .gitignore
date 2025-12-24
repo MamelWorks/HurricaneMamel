@@ -5,3 +5,10 @@
 /build.properties
 /.idea
 *~
+
+# Local development tools
+/apache-ant*/
+*.zip
+/jdk-*/
+hafen.jar
+/.claude/
