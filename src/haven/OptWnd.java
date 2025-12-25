@@ -646,6 +646,7 @@ public class OptWnd extends Window {
 	public static HSlider mapZoomSpeedSlider;
 	public static CheckBox alwaysOpenMiniStudyOnLoginCheckBox;
 	public static HSlider mapIconsSizeSlider;
+	public static HSlider cursorSizeSlider;
 	public static CheckBox improvedInstrumentMusicWindowCheckBox;
     public static CheckBox preventEscKeyFromClosingWindowsCheckBox;
 
@@ -994,8 +995,21 @@ public class OptWnd extends Window {
             }
         }, rightColumn.pos("bl").adds(0, 2));
 
+		// Cursor size slider
+		rightColumn = add(new Label("Cursor Size:"), rightColumn.pos("bl").adds(0, 10));
+		rightColumn = add(cursorSizeSlider = new HSlider(UI.scale(160), 50, 300, Utils.getprefi("cursorSize", 100)) {
+			public void changed() {
+				Utils.setprefi("cursorSize", val);
+			}
+		}, rightColumn.pos("bl").adds(0, 4));
+		add(new Label("(100 = default)"), rightColumn.pos("ur").adds(6, 0));
+		add(new Button(UI.scale(60), "Reset", false).action(() -> {
+			cursorSizeSlider.val = 100;
+			Utils.setprefi("cursorSize", 100);
+		}), rightColumn.pos("bl").adds(0, 4)).tooltip = RichText.render("Reset to default cursor size (100%)", UI.scale(300));
+
 		Widget backButton;
-		add(backButton = new PButton(UI.scale(200), "Back", 27, back, "Advanced Settings"), leftColumn.pos("bl").adds(0, 30).x(0));
+		add(backButton = new PButton(UI.scale(200), "Back", 27, back, "Advanced Settings"), leftColumn.pos("bl").adds(0, 60).x(0));
 	    pack();
 		centerBackButton(backButton, this);
 	}

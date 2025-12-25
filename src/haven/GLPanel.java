@@ -31,6 +31,7 @@ import haven.render.*;
 import haven.render.gl.*;
 import java.awt.Cursor;
 import java.awt.Toolkit;
+import java.awt.image.BufferedImage;
 import haven.JOGLPanel.SyncMode;
 
 public interface GLPanel extends UIPanel, UI.Context {
@@ -226,11 +227,48 @@ public interface GLPanel extends UIPanel, UI.Context {
 	    }
 	    if(curs instanceof Resource) {
 		Resource res = (Resource)curs;
+		int cursorSizePercent = Utils.getprefi("cursorSize", 100);
+		double cursorScale = cursorSizePercent / 100.0;
+
 		if(cursmode == "awt") {
-		    if(curs != lastcursor) {
+		    if(curs != lastcursor || cursorSizePercent != Utils.getprefi("lastCursorSize", 100)) {
 			try {
-			    curshotspot = res.flayer(Resource.negc).cc;
-			    p.setCursor(UIPanel.makeawtcurs(res.flayer(Resource.imgc).img, curshotspot));
+			    BufferedImage origImg = res.flayer(Resource.imgc).img;
+			    Coord origHotspot = res.flayer(Resource.negc).cc;
+
+			    if(cursorScale != 1.0) {
+				// Calculate desired size
+				int desiredWidth = (int)(origImg.getWidth() * cursorScale);
+				int desiredHeight = (int)(origImg.getHeight() * cursorScale);
+
+				// Get maximum cursor size supported by the system
+				java.awt.Dimension maxSize = Toolkit.getDefaultToolkit().getBestCursorSize(desiredWidth, desiredHeight);
+
+				// Cap to system maximum to prevent clipping
+				int newWidth = Math.min(desiredWidth, maxSize.width);
+				int newHeight = Math.min(desiredHeight, maxSize.height);
+
+				// Maintain aspect ratio if we hit the cap
+				double scaleX = (double)newWidth / origImg.getWidth();
+				double scaleY = (double)newHeight / origImg.getHeight();
+				double actualScale = Math.min(scaleX, scaleY);
+
+				newWidth = (int)(origImg.getWidth() * actualScale);
+				newHeight = (int)(origImg.getHeight() * actualScale);
+
+				BufferedImage scaledImg = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
+				java.awt.Graphics2D g2d = scaledImg.createGraphics();
+				g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+				g2d.drawImage(origImg, 0, 0, newWidth, newHeight, null);
+				g2d.dispose();
+
+				curshotspot = new Coord((int)(origHotspot.x * actualScale), (int)(origHotspot.y * actualScale));
+				p.setCursor(UIPanel.makeawtcurs(scaledImg, curshotspot));
+			    } else {
+				curshotspot = origHotspot;
+				p.setCursor(UIPanel.makeawtcurs(origImg, curshotspot));
+			    }
+			    Utils.setprefi("lastCursorSize", cursorSizePercent);
 			} catch(Exception e) {
 			    cursmode = "tex";
 			}
