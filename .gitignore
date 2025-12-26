@@ -12,3 +12,7 @@
 /jdk-*/
 hafen.jar
 /.claude/
+
+# SQLite databases (user data)
+*.db
+*.db-journal
