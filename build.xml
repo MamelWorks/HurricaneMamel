@@ -76,8 +76,13 @@
     <extlib name="steamworks" path="lib/ext/steamworks" url="${ext-lib-base}/steamworks/current" />
   </target>
 
+  <target name="extlib/discord" depends="extlib-env" unless="extlib/has-discord">
+    <!-- Discord RPC libraries are locally built, no remote download needed -->
+    <available property="extlib/has-discord" file="lib/ext/discord/DiscordIPC.jar" />
+  </target>
 
-  <target name="hafen-client" depends="build-env, extlib/jogl, extlib/lwjgl-gl, extlib/steamworks">
+
+  <target name="hafen-client" depends="build-env, extlib/jogl, extlib/lwjgl-gl, extlib/steamworks, extlib/discord">
     <condition property="explicit-annotations">
       <javaversion atleast="21" />
     </condition>
@@ -92,6 +97,12 @@
 	<pathelement path="lib/ext/lwjgl/lwjgl-awt.jar" />
 	<pathelement path="lib/ext/lwjgl/lwjgl-opengl-fat.jar" />
 	<pathelement path="lib/ext/steamworks/steamworks4j.jar" />
+	<pathelement path="lib/ext/discord/DiscordIPC.jar" />
+	<pathelement path="lib/ext/discord/json.jar" />
+	<pathelement path="lib/ext/discord/slf4j-api.jar" />
+	<pathelement path="lib/ext/discord/slf4j-simple.jar" />
+	<pathelement path="lib/ext/discord/junixsocket-common.jar" />
+	<pathelement path="lib/ext/discord/junixsocket-native-common.jar" />
 	<pathelement path="lib/jglob.jar" />
       <pathelement path="lib/rxjava-1.1.5.jar" />
     <pathelement path="lib/sqlite-jdbc-3.42.0.0.jar" />
@@ -126,7 +137,7 @@
       <fileset dir="build/classes-lib" />
       <manifest>
 	<attribute name="Main-Class" value="haven.MainFrame" />
-	<attribute name="Class-Path" value="jogl-all.jar gluegen-rt.jar lwjgl-fat.jar lwjgl-awt.jar lwjgl-opengl-fat.jar steamworks4j.jar builtin-res.jar hafen-res.jar sqlite-jdbc-3.42.0.0.jar" />
+	<attribute name="Class-Path" value="jogl-all.jar gluegen-rt.jar lwjgl-fat.jar lwjgl-awt.jar lwjgl-opengl-fat.jar steamworks4j.jar DiscordIPC.jar json.jar slf4j-api.jar slf4j-simple.jar junixsocket-common.jar junixsocket-native-common.jar builtin-res.jar hafen-res.jar sqlite-jdbc-3.42.0.0.jar" />
     <attribute name="Enable-Native-Access" value="ALL-UNNAMED" />
       </manifest>
     </jar>
@@ -144,7 +155,7 @@
     <fail unless="lib-builtin-jar" message="builtin-res.jar not available" />
   </target>
 
-  <target name="jars" depends="build-env, jar, extlib/jogl, extlib/lwjgl-gl, extlib/steamworks">
+  <target name="jars" depends="build-env, jar, extlib/jogl, extlib/lwjgl-gl, extlib/steamworks, extlib/discord">
     <copy todir="build" failonerror="false" quiet="true">
       <fileset dir="lib">
 	<include name="builtin-res.jar" />
@@ -155,11 +166,12 @@
       <fileset dir="lib/ext/jogl"><include name="*.jar" /></fileset>
       <fileset dir="lib/ext/lwjgl"><include name="*.jar" /></fileset>
       <fileset dir="lib/ext/steamworks"><include name="*.jar" /></fileset>
+      <fileset dir="lib/ext/discord"><include name="*.jar" /></fileset>
     </copy>
     <copy file="local-config.properties" tofile="build/haven-config.properties" failonerror="false" quiet="true" />
   </target>
 
-  <target name="bin" depends="jar, extlib/jogl, extlib/lwjgl-gl, extlib/steamworks, res-jar">
+  <target name="bin" depends="jar, extlib/jogl, extlib/lwjgl-gl, extlib/steamworks, extlib/discord, res-jar">
     <mkdir dir="bin" />
     <copy todir="bin">
       <fileset dir="build">
@@ -175,6 +187,7 @@
       <fileset dir="lib/ext/jogl"><include name="*.jar" /></fileset>
       <fileset dir="lib/ext/lwjgl"><include name="*.jar" /></fileset>
       <fileset dir="lib/ext/steamworks"><include name="*.jar" /></fileset>
+      <fileset dir="lib/ext/discord"><include name="*.jar" /></fileset>
     </copy>
     <copy todir="bin/res" >
       <fileset dir="res" includes="**"/>

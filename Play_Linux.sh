@@ -21,4 +21,5 @@ java \
   --add-exports java.desktop/sun.awt=ALL-UNNAMED \
   --add-exports java.desktop/sun.java2d=ALL-UNNAMED \
   -DrunningThroughSteam=false \
+  -DrunningThroughDiscord=true \
   -jar hafen.jar "$@"

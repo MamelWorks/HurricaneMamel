@@ -48,6 +48,7 @@ public class MainFrame extends java.awt.Frame implements Console.Directory, AWTE
     Coord prefssz = null;
 	public static String gameDir = null;
 	public static boolean runningThroughSteam = true;
+	public static boolean runningThroughDiscord = true;
 
     public static void initlocale() {
 	try {
@@ -534,6 +535,10 @@ public class MainFrame extends java.awt.Frame implements Console.Directory, AWTE
 	String runningThroughSteamValue = System.getProperty("runningThroughSteam");
 	if (runningThroughSteamValue != null) {
 		runningThroughSteam = Boolean.parseBoolean(runningThroughSteamValue);
+	}
+	String runningThroughDiscordValue = System.getProperty("runningThroughDiscord");
+	if (runningThroughDiscordValue != null) {
+		runningThroughDiscord = Boolean.parseBoolean(runningThroughDiscordValue);
 	}
     }
 	

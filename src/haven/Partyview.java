@@ -156,11 +156,20 @@ public class Partyview extends Widget {
 	    api.setparty(Integer.toString(party.id), party.memb.size());
     }
 
+    private void upddiscord() {
+	Discord discord = Discord.get();
+	if(discord != null)
+	    discord.setParty(Integer.toString(party.id), party.memb.size(), party.memb.size());
+    }
+
     public void destroy() {
 	super.destroy();
 	Steam api = Steam.get();
 	if(api != null)
 	    api.setparty(null, 0);
+	Discord discord = Discord.get();
+	if(discord != null)
+	    discord.clearParty();
     }
 
     public void uimsg(String msg, Object... args) {
@@ -175,6 +184,7 @@ public class Partyview extends Widget {
 	    }
 	    party.memb = nmemb;
 	    updsteam();
+	    upddiscord();
 	} else if(msg == "ldr") {
 	    party.leader = party.memb.get(Utils.uiv(args[0]));
 	} else if(msg == "m") {
@@ -191,6 +201,7 @@ public class Partyview extends Widget {
 	} else if(msg == "pid") {
 	    party.id = Utils.iv(args[0]);
 	    updsteam();
+	    upddiscord();
 	} else {
 	    super.uimsg(msg, args);
 	}
