@@ -2209,7 +2209,7 @@ public class OptWnd extends Window {
 			}, UI.scale(240, 0));
 			showObjectCollisionBoxesCheckBox.tooltip = showObjectCollisionBoxesTooltip;
 			middleColumn = add(collisionBoxColorOptionWidget = new ColorOptionWidget("Collision Box Color:", "collisionBox", 115, Integer.parseInt(collisionBoxColorSetting[0]), Integer.parseInt(collisionBoxColorSetting[1]), Integer.parseInt(collisionBoxColorSetting[2]), Integer.parseInt(collisionBoxColorSetting[3]), (Color col) -> {
-				CollisionBox.SOLID_HOLLOW = Pipe.Op.compose(new ColorMask(col), new States.LineWidth(CollisionBox.WIDTH), CollisionBox.TOP);
+				CollisionBox.SOLID_HOLLOW = Pipe.Op.compose(new ColorMask(col), new States.LineWidth(CollisionBox.WIDTH), Rendered.last, States.Depthtest.none);
 				if (ui != null && ui.gui != null) {
 					ui.sess.glob.oc.gobAction(Gob::updateCollisionBoxes);
 					ui.gui.map.updatePlobCollisionBox();
@@ -2218,7 +2218,7 @@ public class OptWnd extends Window {
 			add(new Button(UI.scale(70), "Reset", false).action(() -> {
 				Utils.setprefsa("collisionBox" + "_colorSetting", new String[]{"255", "255", "255", "210"});
 				collisionBoxColorOptionWidget.cb.colorChooser.setColor(collisionBoxColorOptionWidget.currentColor = new Color(255, 255, 255, 210));
-				CollisionBox.SOLID_HOLLOW = Pipe.Op.compose(new ColorMask(OptWnd.collisionBoxColorOptionWidget.currentColor), new States.LineWidth(CollisionBox.WIDTH), CollisionBox.TOP);
+				CollisionBox.SOLID_HOLLOW = Pipe.Op.compose(new ColorMask(OptWnd.collisionBoxColorOptionWidget.currentColor), new States.LineWidth(CollisionBox.WIDTH), Rendered.last, States.Depthtest.none);
 				if (ui != null && ui.gui != null) {
 					ui.sess.glob.oc.gobAction(Gob::updateCollisionBoxes);
 					ui.gui.map.updatePlobCollisionBox();
@@ -3531,6 +3531,7 @@ public class OptWnd extends Window {
 	public static CheckBox hideFlavorObjectsCheckBox;
 	public static CheckBox flatWorldCheckBox;
 	public static CheckBox disableTileSmoothingCheckBox;
+    public static CheckBox disableTileBlendingCheckBox;
 	public static CheckBox disableTileTransitionsCheckBox;
 	public static CheckBox flatCaveWallsCheckBox;
 	public static CheckBox straightCliffEdgesCheckBox;
@@ -3619,6 +3620,18 @@ public class OptWnd extends Window {
 				}
 			}, leftColumn.pos("bl").adds(0, 2));
 			disableTileSmoothingCheckBox.tooltip = disableTileSmoothingTooltip;
+            leftColumn = add(disableTileBlendingCheckBox = new CheckBox("Disable Tile Blending"){
+                {a = Utils.getprefb("disableTileBlending", false);}
+                public void changed(boolean val) {
+                    Utils.setprefb("disableTileBlending", val);
+                    if (ui.sess != null)
+                        ui.sess.glob.map.invalidateAll();
+                    if (ui != null && ui.gui != null) {
+                        ui.gui.optionInfoMsg("Tile Blending is now " + (val ? "DISABLED" : "ENABLED") + "!", (val ? msgRed : msgGreen), Audio.resclip(val ? Toggle.sfxoff : Toggle.sfxon));
+                    }
+                }
+            }, leftColumn.pos("bl").adds(0, 2));
+            disableTileBlendingCheckBox.tooltip = disableTileBlendingTooltip;
 			leftColumn = add(disableTileTransitionsCheckBox = new CheckBox("Disable Tile Transitions"){
 				{a = Utils.getprefb("disableTileTransitions", false);}
 				public void changed(boolean val) {
@@ -3643,17 +3656,21 @@ public class OptWnd extends Window {
 				}
 			}, leftColumn.pos("bl").adds(0, 12));
 			hideFlavorObjectsCheckBox.tooltip = hideFlavorObjectsTooltip;
-			leftColumn = add(simplifiedCropsCheckBox = new CheckBox("Simplified Crops (Requires Reload)"){
+			leftColumn = add(simplifiedCropsCheckBox = new CheckBox("Simplified Crops"){
 				{a = Utils.getprefb("simplifiedCrops", false);}
 				public void changed(boolean val) {
 					Utils.setprefb("simplifiedCrops", val);
+                    if (ui != null && ui.gui != null)
+                        ui.sess.glob.oc.gobAction(Gob::refreshCrops);
 				}
 			}, leftColumn.pos("bl").adds(0, 2));
 			simplifiedCropsCheckBox.tooltip = simplifiedCropsTooltip;
-			leftColumn = add(simplifiedForageablesCheckBox = new CheckBox("Simplified Forageables (Requires Reload)"){
+			leftColumn = add(simplifiedForageablesCheckBox = new CheckBox("Simplified Forageables"){
 				{a = Utils.getprefb("simplifiedForageables", false);}
 				public void changed(boolean val) {
 					Utils.setprefb("simplifiedForageables", val);
+                    if (ui != null && ui.gui != null)
+                        ui.sess.glob.oc.gobAction(Gob::refreshForageables);
 				}
 			}, leftColumn.pos("bl").adds(0, 2));
 			simplifiedForageablesCheckBox.tooltip = simplifiedForageablesTooltip;
@@ -4038,7 +4055,7 @@ public class OptWnd extends Window {
 
 			prev = add(hiddenObjectsColorOptionWidget = new ColorOptionWidget("Hidden Objects Box Color:", "hidingBox", 170, Integer.parseInt(hiddenObjectsColorSetting[0]), Integer.parseInt(hiddenObjectsColorSetting[1]), Integer.parseInt(hiddenObjectsColorSetting[2]), Integer.parseInt(hiddenObjectsColorSetting[3]), (Color col) -> {
 				HidingBox.SOLID_FILLED = Pipe.Op.compose(new BaseColor(col), new States.Facecull(States.Facecull.Mode.NONE), Rendered.last);
-				HidingBox.SOLID_HOLLOW = Pipe.Op.compose(new BaseColor(new Color(col.getRed(), col.getGreen(), col.getBlue(), 153)), new States.LineWidth(HidingBox.WIDTH), HidingBox.TOP);
+				HidingBox.SOLID_HOLLOW = Pipe.Op.compose(new BaseColor(new Color(col.getRed(), col.getGreen(), col.getBlue(), 153)), new States.LineWidth(HidingBox.WIDTH), Rendered.last, States.Depthtest.none);
 				if (ui != null && ui.gui != null) {
 					ui.sess.glob.oc.gobAction(Gob::updateHidingBoxes);
 					ui.gui.map.updatePlobHidingBox();
@@ -4049,7 +4066,7 @@ public class OptWnd extends Window {
 				Utils.setprefsa("hidingBox" + "_colorSetting", new String[]{"0", "225", "255", "170"});
 				hiddenObjectsColorOptionWidget.cb.colorChooser.setColor(hiddenObjectsColorOptionWidget.currentColor = new Color(0, 225, 255, 170));
 				HidingBox.SOLID_FILLED = Pipe.Op.compose(new BaseColor(hiddenObjectsColorOptionWidget.currentColor), new States.Facecull(States.Facecull.Mode.NONE), Rendered.last);
-				HidingBox.SOLID_HOLLOW = Pipe.Op.compose(new BaseColor(new Color(hiddenObjectsColorOptionWidget.currentColor.getRed(), hiddenObjectsColorOptionWidget.currentColor.getGreen(), hiddenObjectsColorOptionWidget.currentColor.getBlue(), 153)), new States.LineWidth(HidingBox.WIDTH), HidingBox.TOP);
+				HidingBox.SOLID_HOLLOW = Pipe.Op.compose(new BaseColor(hiddenObjectsColorOptionWidget.currentColor), new States.LineWidth(HidingBox.WIDTH), Rendered.last, States.Depthtest.none);
 				if (ui != null && ui.gui != null) {
 					ui.sess.glob.oc.gobAction(Gob::updateHidingBoxes);
 					ui.gui.map.updatePlobHidingBox();
@@ -5070,7 +5087,13 @@ public class OptWnd extends Window {
 			"\n$col[185,185,185]{I guess some people think this makes it easier to differentiate between terrain types, or maybe it's just preference.}" +
 			"\n" +
 			"\n$col[218,163,0]{Action Button:} $col[185,185,185]{This setting can also be turned on/off using an action button from the menu grid (Custom Client Extras → Toggles).}", UI.scale(320));
-	private static final Object disableTileTransitionsTooltip = RichText.render("This will turn all tiles into squares, so you can determine where one biome ends and another one starts, or where the shoreline meets the water." +
+    private static final Object disableTileBlendingTooltip = RichText.render("This will remove the blending of the random texture patches that are being applied to biome tiles." +
+            "\n" +
+            "\n$col[185,185,185]{It might make it a bit more confusing, because some patches of land might look like completely different biomes, but they're not...}" +
+            "\n" +
+            "\n$col[218,163,0]{Action Button:} $col[185,185,185]{This setting can also be turned on/off using an action button from the menu grid (Custom Client Extras → Toggles).}", UI.scale(320));
+
+    private static final Object disableTileTransitionsTooltip = RichText.render("This will turn all tiles into squares, so you can determine where one biome ends and another one starts, or where the shoreline meets the water." +
 			"\n" +
 			"\n$col[185,185,185]{It can be useful in some niche cases I won't bother listing, but it's preference.}" +
 			"\n" +
