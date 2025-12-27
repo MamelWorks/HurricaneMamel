@@ -216,10 +216,9 @@ public class WItem extends Widget implements DTarget {
 	    g.defstate();
 	    if(rstate.get() != null)
 		g.usestate(rstate.get());
-		String itemName = item.getname().toLowerCase();
-		String searchKeyword = InventorySearchWindow.inventorySearchString.toLowerCase();
+		String searchKeyword = InventorySearchWindow.inventorySearchString;
 		if (searchKeyword.length() > 1) {
-			if (Fuzzy.fuzzyContains(itemName, searchKeyword)) {
+			if (InventorySearchMatcher.matchesItemOrStack(item, searchKeyword)) {
 				int fps = GLPanel.Loop.fps > 0 ? GLPanel.Loop.fps : 1;
 				int colorShiftSpeed = 800/fps;
 				if (searchItemColorShiftUp) {

@@ -21,4 +21,6 @@ if errorlevel 1 (
     echo.
     echo ERROR: Hurricane client exited with an error!
     pause
+) else (
+    exit
 )
