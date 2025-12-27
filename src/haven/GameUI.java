@@ -521,6 +521,11 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 
     Float timeSpeed = GAMETIME_SPEEDS.get(genus);
     gameTimeSpeedMultiplier = timeSpeed != null ? timeSpeed : 3.29f;
+
+	// Update Discord Rich Presence with world info
+	Discord discord = Discord.get();
+	if(discord != null && genus != null && !genus.isEmpty())
+	    discord.setWorld(genus);
     }
 
     protected void attached() {

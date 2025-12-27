@@ -38,9 +38,16 @@ public class Discord {
 	// Discord Application ID for Haven & Hearth
 	private static final long APPLICATION_ID = 1454227144874922178L;
 
+	// World genus to name mapping
+	private static final java.util.Map<String, String> WORLD_NAMES = new java.util.HashMap<String, String>() {{
+		put("b7c199a4557503a8", "World 16.1");
+		put("c646473983afec09", "World 16");
+	}};
+
 	private IPCClient client;
 	private RichPresence.Builder presenceBuilder;
 	private boolean connected = false;
+	private String currentWorld = null;
 
 	private Discord() {
 		try {
@@ -146,6 +153,14 @@ public class Discord {
 
 	public synchronized void clearParty() {
 		setParty(null, 0, 0);
+	}
+
+	public synchronized void setWorld(String genus) {
+		if (presenceBuilder != null) {
+			String worldName = WORLD_NAMES.getOrDefault(genus, "Unknown World");
+			currentWorld = worldName;
+			setDetails("Playing on " + worldName);
+		}
 	}
 
 	public synchronized void setLargeImage(String key, String text) {

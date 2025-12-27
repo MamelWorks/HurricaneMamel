@@ -158,8 +158,13 @@ public class Partyview extends Widget {
 
     private void upddiscord() {
 	Discord discord = Discord.get();
-	if(discord != null)
-	    discord.setParty(Integer.toString(party.id), party.memb.size(), party.memb.size());
+	if(discord != null) {
+	    // Only show party info if not solo
+	    if(party.memb.size() > 1)
+		discord.setParty(Integer.toString(party.id), party.memb.size(), party.memb.size());
+	    else
+		discord.clearParty();
+	}
     }
 
     public void destroy() {
