@@ -159,6 +159,7 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 	public Thread coracleScriptThread;
 	public Thread skisScriptThread;
 	public Thread refillWaterContainersThread;
+	public Thread checkWaterQualityThread;
 	public CombatDistanceTool combatDistanceTool;
 	public Thread combatDistanceToolThread;
 	public Thread harvestNearestDreamcatcherThread;

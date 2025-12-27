@@ -16,3 +16,4 @@ hafen.jar
 # SQLite databases (user data)
 *.db
 *.db-journal
+client.log

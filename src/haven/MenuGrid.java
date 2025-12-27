@@ -788,6 +788,7 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 		makeLocal("customclient/menugrid/OtherScriptsAndTools/CoracleScript");
 		makeLocal("customclient/menugrid/OtherScriptsAndTools/SkisScript");
 		makeLocal("customclient/menugrid/OtherScriptsAndTools/RefillWaterContainers");
+		makeLocal("customclient/menugrid/OtherScriptsAndTools/CheckWaterQuality");
 		makeLocal("customclient/menugrid/OtherScriptsAndTools/CombatDistanceTool");
 		makeLocal("customclient/menugrid/OtherScriptsAndTools/RefillCheeseTrays");
 		makeLocal("customclient/menugrid/OtherScriptsAndTools/HarvestNearestDreamcatcher");
@@ -1037,6 +1038,16 @@ public class MenuGrid extends Widget implements KeyBinding.Bindable {
 					gui.refillWaterContainersThread = null;
 					gui.refillWaterContainersThread = new Thread(new RefillWaterContainers(gui), "RefillWaterContainers");
 					gui.refillWaterContainersThread.start();
+				}
+			} else if (ad[2].equals("CheckWaterQuality")) {
+				if (gui.checkWaterQualityThread == null) {
+					gui.checkWaterQualityThread = new Thread(new CheckWaterQuality(gui), "CheckWaterQuality");
+					gui.checkWaterQualityThread.start();
+				} else {
+					gui.checkWaterQualityThread.interrupt();
+					gui.checkWaterQualityThread = null;
+					gui.checkWaterQualityThread = new Thread(new CheckWaterQuality(gui), "CheckWaterQuality");
+					gui.checkWaterQualityThread.start();
 				}
 			} else if (ad[2].equals("CombatDistanceTool")) {
 				if (gui.combatDistanceTool == null && gui.combatDistanceToolThread == null) {
