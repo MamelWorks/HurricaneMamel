@@ -76,8 +76,18 @@ public class RefillWaterContainers implements Runnable {
                         return;
                     }
                 } else {
-                    gui.ui.error("Refill Water Script: You must be on a water tile, in order to refill your containers!");
-                    return;
+                    // Not on water tile, check for nearby water barrel
+                    Gob waterBarrel = findNearbyWaterBarrel();
+                    if (waterBarrel != null) {
+                        do {
+                            refillContainersFromBarrel(waterBarrel);
+                        } while (getInventoryContainers().size() != 0 || getBeltContainers().size() != 0 || getEquiporyPouchContainers().size() != 0);
+                        gui.ui.msg("Water Refilled from barrel!");
+                        return;
+                    } else {
+                        gui.ui.error("Refill Water Script: You must be on a water tile or near a water barrel!");
+                        return;
+                    }
                 }
             } while (getInventoryContainers().size() != 0 || getBeltContainers().size() != 0 || getEquiporyPouchContainers().size() != 0);
             gui.ui.msg("Water Refilled!");
@@ -197,5 +207,85 @@ public class RefillWaterContainers implements Runnable {
 
     private boolean shouldAddToContainers(ItemInfo.Contents.Content content, float contentCount) {
         return content == null || (content.count != contentCount && Objects.equals(content.name, "Water"));
+    }
+
+    private Gob findNearbyWaterBarrel() {
+        Gob closestBarrel = null;
+        double minDist = Double.MAX_VALUE;
+        double maxDist = 44.0; // ~4 tiles (11 units per tile)
+        Coord2d playerPos = gui.map.player().rc;
+
+        synchronized (gui.map.glob.oc) {
+            for (Gob gob : gui.map.glob.oc) {
+                try {
+                    Resource res = gob.getres();
+                    if (res != null && res.name.startsWith("gfx/terobjs/barrel")) {
+                        double dist = gob.rc.dist(playerPos);
+                        if (dist < maxDist && dist < minDist && hasWaterOverlay(gob)) {
+                            minDist = dist;
+                            closestBarrel = gob;
+                        }
+                    }
+                } catch (Loading ignored) {
+                }
+            }
+        }
+        return closestBarrel;
+    }
+
+    private boolean hasWaterOverlay(Gob gob) {
+        if (gob != null && !gob.ols.isEmpty()) {
+            return gob.ols.stream()
+                    .anyMatch(ol -> ol != null && ol.spr != null && ol.spr.res != null
+                            && ol.spr.res.name.equals("gfx/terobjs/barrel-water"));
+        }
+        return false;
+    }
+
+    private void refillContainersFromBarrel(Gob barrel) throws InterruptedException {
+        Inventory belt = returnBelt();
+        Equipory equipory = gui.getequipory();
+
+        Map<WItem, Coord> inventoryItems = getInventoryContainers();
+        for (Map.Entry<WItem, Coord> item : inventoryItems.entrySet()) {
+            try {
+                item.getKey().item.wdgmsg("take", Coord.z);
+                Thread.sleep(5);
+                gui.map.wdgmsg("itemact", Coord.z, barrel.rc.floor(posres), 0, 0, (int) barrel.id, barrel.rc.floor(posres), 0, -1);
+                Thread.sleep(30);
+                gui.maininv.wdgmsg("drop", item.getValue());
+                Thread.sleep(5);
+            } catch (InterruptedException e) {
+                throw e;
+            }
+        }
+
+        Map<WItem, Coord> beltItems = getBeltContainers();
+        for (Map.Entry<WItem, Coord> item : beltItems.entrySet()) {
+            try {
+                item.getKey().item.wdgmsg("take", Coord.z);
+                Thread.sleep(5);
+                gui.map.wdgmsg("itemact", Coord.z, barrel.rc.floor(posres), 0, 0, (int) barrel.id, barrel.rc.floor(posres), 0, -1);
+                Thread.sleep(40);
+                belt.wdgmsg("drop", item.getValue());
+                Thread.sleep(5);
+            } catch (InterruptedException e) {
+                throw e;
+            }
+        }
+
+        Map<WItem, Integer> equiporyPouchItems = getEquiporyPouchContainers();
+        for (Map.Entry<WItem, Integer> item : equiporyPouchItems.entrySet()) {
+            try {
+                item.getKey().item.wdgmsg("take", Coord.z);
+                Thread.sleep(5);
+                gui.map.wdgmsg("itemact", Coord.z, barrel.rc.floor(posres), 0, 0, (int) barrel.id, barrel.rc.floor(posres), 0, -1);
+                Thread.sleep(40);
+                equipory.wdgmsg("drop", item.getValue());
+                Thread.sleep(5);
+            } catch (InterruptedException e) {
+                throw e;
+            }
+        }
     }
 }
