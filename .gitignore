@@ -11,7 +11,8 @@
 *.zip
 /jdk-*/
 hafen.jar
-/.claude/
+/.claude/*
+!/.claude/CLAUDE.md
 
 # SQLite databases (user data)
 *.db
