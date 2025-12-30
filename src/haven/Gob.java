@@ -82,7 +82,6 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	GobReadyForHarvestInfo readyForHarvestInfo;
 	GobFoodWaterInfo foodWaterInfo;
 	GobBeeskepHarvestInfo beeskepHarvestInfo;
-    GobHidden gobHidden;
 	public boolean isHidden;
 	private final GobCustomSizeAndRotation customSizeAndRotation = new GobCustomSizeAndRotation();
 	public double gobSpeed = 0;
@@ -801,11 +800,11 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		setupmods.remove(prev);
 	}
 	if(a != null) {
-	    if(a instanceof RenderTree.Node) {
+	    if(a instanceof RenderTree.Node && !a.skipRender) {
 		try {
 		    RUtils.multiadd(this.slots, (RenderTree.Node)a);
 		} catch(Loading l) {
-		    if(prev instanceof RenderTree.Node) {
+		    if(prev instanceof RenderTree.Node && !prev.skipRender) {
 			RUtils.multiadd(this.slots, (RenderTree.Node)prev);
 			attr.put(ac, prev);
 		    }
@@ -985,8 +984,11 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 		slot.add(ol);
 	}
 	for(GAttrib a : attr.values()) {
-	    if(a instanceof RenderTree.Node)
-		slot.add((RenderTree.Node)a);
+	    if(a instanceof RenderTree.Node && !a.skipRender)
+			try {
+				slot.add((RenderTree.Node) a);
+			} catch (GLObject.UseAfterFreeException ignored) {
+			}
 	}
 	slots.add(slot);
     }
@@ -1544,14 +1546,19 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 			doHide = (doHide && !mapIconVisible);
 			doShowHidingBox = (doShowHidingBox && !mapIconVisible);
 			isHidden = doHide;
-            if (doHide) {
-                if (gobHidden == null) {
-                    gobHidden = new GobHidden(this);
-                    setattr(GobHidden.class, gobHidden);
-                }
-            }
-            if (gobHidden != null)
-                gobHidden.update(doHide);
+			Drawable d = getattr(Drawable.class);
+			if (d != null && d.skipRender != (doHide) ) {
+				d.skipRender = doHide;
+				if (doHide) {
+					if (d.slots != null) {
+						ArrayList<RenderTree.Slot> tmpSlots = new ArrayList<>(d.slots);
+						glob.loader.defer(() -> RUtils.multiremSafe(tmpSlots), null);
+					}
+				} else {
+					ArrayList<RenderTree.Slot> tmpSlots = new ArrayList<>(slots);
+					glob.loader.defer(() -> RUtils.multiaddSafe(tmpSlots, d), null);
+				}
+			}
 			if ((OptWnd.toggleGobHidingCheckBox.a && doShowHidingBox)) {
 				if (hidingBoxHollow != null) {
 					if (!hidingBoxHollow.show(true)) {
