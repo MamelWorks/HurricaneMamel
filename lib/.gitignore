@@ -1,3 +1,4 @@
 /hafen-res.jar
 /builtin-res.jar
-/ext
+/ext/*
+!/ext/discord/
