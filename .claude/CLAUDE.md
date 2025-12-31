@@ -136,6 +136,39 @@ taskkill //F //IM java.exe 2>/dev/null ; ./Build.bat && cmd //c start Play.bat
 - After every single file edit during multi-file changes
 - For work-in-progress edits
 
+### Merging Upstream Changes
+
+When merging updates from upstream (Nightdawg/Hurricane), follow these steps to ensure the version number updates correctly:
+
+```bash
+# 1. Fetch latest changes from upstream
+git fetch upstream
+
+# 2. Merge upstream changes
+git merge upstream/master
+
+# 3. Clean build artifacts (preserves Discord libraries in lib/ext/discord)
+./Build.bat clean
+
+# 4. Rebuild the client with updated version
+./Build.bat
+
+# 5. Push to your fork
+git push origin master
+```
+
+**Why the clean build is necessary:**
+- The version number is defined in `src/haven/Config.java` (line 42: `clientVersion`)
+- The compiled JAR in `bin/hafen.jar` caches the old version string
+- Running `./Build.bat clean` deletes `bin/` and `build/` directories
+- The Discord libraries in `lib/ext/discord/` are preserved (not deleted by clean)
+- A fresh build compiles the new version number into the JAR
+
+**Version checking:**
+- The client checks `Nightdawg/Hurricane` GitHub releases for updates
+- This is intentional - allows seeing when upstream has new versions
+- Located in `LoginScreen.java:233` and `GitHubVersionFetcher.java`
+
 ## Technical Details
 
 - **Operating System:** Windows

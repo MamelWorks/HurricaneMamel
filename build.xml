@@ -262,7 +262,11 @@
 
   <target name="clean">
     <delete dir="build" />
-    <delete dir="lib/ext" />
+    <delete dir="lib/ext/jogl" />
+    <delete dir="lib/ext/lwjgl" />
+    <delete dir="lib/ext/steamworks" />
+    <delete file="lib/ext/builtin-res.jar" />
+    <delete file="lib/ext/hafen-res.jar" />
     <delete dir="bin" />
   </target>
 </project>
