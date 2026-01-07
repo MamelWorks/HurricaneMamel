@@ -138,6 +138,11 @@ taskkill //F //IM java.exe 2>/dev/null ; ./Build.bat && cmd //c start Play.bat
 
 ### Merging Upstream Changes
 
+**When the user says "fork updated" or similar phrases indicating upstream has new changes:**
+- Immediately proceed with the merge workflow below
+- DO NOT ask for confirmation - the user statement IS the confirmation
+- Proceed directly to fetching, merging, cleaning, rebuilding, and pushing
+
 When merging updates from upstream (Nightdawg/Hurricane), follow these steps to ensure the version number updates correctly:
 
 ```bash
