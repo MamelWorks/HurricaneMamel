@@ -758,7 +758,18 @@ public abstract class SkyLib {
 		      * Reinhard with a white point of 0.72, and at 2.20 a lit
 		      * cloud landed within ten levels of the sky under it --
 		      * darker than it, in fact, at the elevations this camera
-		      * shows: 0.739 against 0.881. */
+		      * shows: 0.739 against 0.881.
+		      *
+		      * The dark end barely matters and it is worth knowing why.
+		      * sk_lv bottoms at 0.55 * 0.32 = 0.176, and sk_lit only
+		      * adds, so sk_L cannot go below about 0.15 -- this endpoint
+		      * is never reached, only approached to a seventh. Measured
+		      * against sky_clouds' darker 0.30, 0.32, 0.40 it moves the
+		      * shaded side of a cloud by one level of 255 and the thin
+		      * boundary by less than half of one, at midday and at dusk
+		      * alike. It is set here to keep the pair a shading range
+		      * rather than a brightness jump, not because the value is
+		      * doing measurable work. */
 		     "vec3 sk_cc = mix(vec3(0.45, 0.48, 0.62), vec3(5.00, 4.90, 4.70), sk_L) * sk_day;\n" +
 		     /* No rim term here. One was tried -- a pow(dot(fake normal,
 		      * sun), 6.0) forward-scatter highlight on the thin edges --
@@ -770,9 +781,23 @@ public abstract class SkyLib {
 		      * a sun-facing term that cannot tell the two directions apart.
 		      * Rendered with and without, side by side at mid and low sun,
 		      * the two are indistinguishable. */
-		     /* Task 4 replaces this line. It is the shipped twilight
-		      * term, and at this peak brightness the tonemap flattens
-		      * it to half the colour spread it had. */
+		     /* The twilight tint is multiplicative on the result, and
+		      * that was re-decided rather than inherited. Raising the lit
+		      * peak to 5.00 does flatten colour ratios near white --
+		      * sky_tone's derivative is four times shallower there than
+		      * at 2.20, and on a fully lit pixel this tint drops from 22
+		      * levels of 255 to 12. But a fully lit pixel is not what a
+		      * cloud is made of: measured at the horizon, the brightest
+		      * tenth of the interior carries 21.6 levels against the
+		      * interior median's 24.1, a loss of a tenth.
+		      *
+		      * The alternative -- tinting the mix endpoints, so the ratio
+		      * is carried where the tonemap can resolve it -- was built
+		      * and measured. It wins at the horizon and loses at every
+		      * other point on the ramp, because tinting endpoints makes
+		      * the tint's strength depend on sk_L, and it turns the
+		      * horizon clouds brown by darkening the lit end to open the
+		      * ratio. ADR-0013 has the four-elevation table. */
 		     "sk_cc = mix(sk_cc, sk_cc * vec3(1.25, 0.85, 0.62),\n" +
 		     "            exp(-abs($4) * " + TWI_CLOUD + ") * 0.85);\n" +
 		     "return mix($3, sk_cc, sk_c * sk_fade * 0.95);\n",
