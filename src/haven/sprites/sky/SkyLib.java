@@ -161,6 +161,41 @@ public abstract class SkyLib {
      * Wider on purpose; this is the one constant here chosen by eye. */
     public static final double TWI_CLOUD = 9.5;
 
+    /* --- Mode B cloud constants (ADR-0013) ---------------------------------
+     *
+     * sky_cloudsB builds a BILLOW field -- abs(2n-1) per octave -- which is not
+     * the field ADR-0008 measured, so none of that ADR's numbers carry over to
+     * it. Measured over 400k samples at four octaves:
+     *
+     *     mean 0.3351   sd 0.1370   min 0.0117   max 0.8464
+     *     p70  0.4063   p90 0.5251
+     *
+     * The coverage window is half a standard deviation centred on p70, the same
+     * placement rule ADR-0008 settled on. CLOUD_CORE is the field's own p90, so
+     * a tenth of the field exceeds it by construction -- reachable, not clipped.
+     *
+     * Anyone changing the octave count, the basis or the lacunarity must
+     * re-measure and re-place all three, because a different field has a
+     * different distribution and these numbers will mean something else.
+     * `python3 measure.py dist` in the ADR-0009 harness prints them. */
+    public static final double CLOUD_ON = 0.372;      /* p70 - sd/4 */
+    public static final double CLOUD_FULL = 0.441;    /* p70 + sd/4 */
+    public static final double CLOUD_CORE = 0.5251;   /* the field's p90 */
+
+    /* Frequency, lowered from the 4.5 sky_clouds uses, for larger masses.
+     *
+     * The drift constants below are NOT the ones in sky_clouds, and that is
+     * forced rather than chosen. ADR-0008 derived 0.0050 and 0.0020 cells per
+     * game-second from "the visible band is about 4.3 cells wide" AT FREQUENCY
+     * 4.5, giving 243 s to cross. A cell is frequency-independent, but the
+     * number of cells spanning the fixed on-screen band is not: at 3.8 the band
+     * is 4.3 * 3.8/4.5 = 3.6 cells, so the same drift would cross it in 205 s --
+     * 16% faster than the speed that was measured and judged. Scaling both by
+     * 3.8/4.5 restores 243 s. */
+    public static final double CLOUD_FREQ = 3.8;
+    public static final double CLOUD_DRIFT_X = 0.00422;   /* 0.0050 * 3.8/4.5 */
+    public static final double CLOUD_DRIFT_Y = 0.00169;   /* 0.0020 * 3.8/4.5 */
+
     /* --- shared output transform ------------------------------------- */
 
     /* Reinhard + gamma. Sky colour and fog colour MUST both pass through
@@ -560,6 +595,128 @@ public abstract class SkyLib {
 		     d, s, t, sky, oct, sh));
     }};
 
+    /* --- clouds, quality mode (Y-up) ---------------------------------- */
+
+    /* What this has that sky_clouds does not is one thing: a SECOND sample of
+     * the same field, displaced toward the sun. Where density rises toward the
+     * sun, the point is behind cloud and is shaded. That is the only term in
+     * either cloud function whose shading follows the sun, and it is what makes
+     * a cloud read as a mass rather than as a patch -- measured on the opaque
+     * interior, the same pixel varies 0.0143 across four sun azimuths against
+     * 0.0032 for a thickness-only version of the same shader.
+     *
+     * It is a separate function rather than a flag on sky_clouds because the
+     * loop body genuinely differs -- a different basis and two accumulators --
+     * and because keeping sky_clouds untouched means Mode A cannot regress,
+     * which is provable by byte-comparing the GLSL SkyDump emits for sky_colA.
+     *
+     * There is no octave parameter. Not for speed -- both call sites already
+     * pass compile-time literals -- but because every argument removed is one
+     * less place for raw()'s unchecked $n substitution to go wrong, which
+     * ADR-0009 records as this DSL's characteristic failure mode. */
+    public static final Function cloudsB = new Function.Def(VEC3, "sky_cloudsB") {{
+	Expression d = param(IN, VEC3).ref();
+	Expression s = param(IN, VEC3).ref();
+	Expression t = param(IN, FLOAT).ref();
+	Expression sky = param(IN, VEC3).ref();
+	Expression sh = param(IN, FLOAT).ref();
+	code.add(raw("if($0.y <= 0.005) return $3;\n" +
+		     "vec2 sk_uv = $0.xz / ($0.y + 0.45) * (0.55 * " + CLOUD_FREQ + ")\n" +
+		     "           + vec2($2 * " + CLOUD_DRIFT_X + ", $2 * " + CLOUD_DRIFT_Y + ");\n" +
+		     /* The sun's azimuth in the deck plane. PEAK = 0.48 bounds
+		      * |s.y| at 0.462, so |s.xz| is never below 0.887 and this
+		      * cannot degenerate -- the guard is there because that
+		      * bound is a constant somewhere else, not a law. */
+		     "vec2 sk_sd = $1.xz;\n" +
+		     "float sk_sl = length(sk_sd);\n" +
+		     "sk_sd = (sk_sl < 1.0e-4) ? vec2(1.0, 0.0) : (sk_sd / sk_sl);\n" +
+		     /* Fixed reach for now -- Task 3 replaces this line with one
+		      * that falls off with the sun's real elevation. */
+		     "vec2 sk_o2 = sk_sd * 0.60;\n" +
+		     "float sk_p = 0.0;\n" +
+		     "float sk_ps = 0.0;\n" +
+		     "{\n" +
+		     "    vec2 sk_q = sk_uv;\n" +
+		     "    vec2 sk_q2 = sk_uv + sk_o2;\n" +
+		     "    float sk_amp = 0.5;\n" +
+		     "    for(int sk_o = 0; sk_o < 4; sk_o++) {\n" +
+		     "        vec2 sk_i = floor(sk_q), sk_f = fract(sk_q);\n" +
+		     "        vec2 sk_u = sk_f * sk_f * (3.0 - 2.0 * sk_f);\n" +
+		     "        float sk_h0 = fract(sin(dot(sk_i + vec2(0.0, 0.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
+		     "        float sk_h1 = fract(sin(dot(sk_i + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
+		     "        float sk_h2 = fract(sin(dot(sk_i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
+		     "        float sk_h3 = fract(sin(dot(sk_i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
+		     /* abs(2n-1) is the whole silhouette change. It costs one
+		      * multiply-add and a sign strip, and it turns amorphous
+		      * patches into rounded lobes. It also moves the field's
+		      * mean from 0.485 to 0.335, which is why the thresholds
+		      * above are not sky_clouds'. */
+		     "        float sk_n = mix(mix(sk_h0, sk_h1, sk_u.x), mix(sk_h2, sk_h3, sk_u.x), sk_u.y);\n" +
+		     "        sk_p += sk_amp * abs(2.0 * sk_n - 1.0);\n" +
+		     "        vec2 sk_i2 = floor(sk_q2), sk_f2 = fract(sk_q2);\n" +
+		     "        vec2 sk_u2 = sk_f2 * sk_f2 * (3.0 - 2.0 * sk_f2);\n" +
+		     "        float sk_g0 = fract(sin(dot(sk_i2 + vec2(0.0, 0.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
+		     "        float sk_g1 = fract(sin(dot(sk_i2 + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
+		     "        float sk_g2 = fract(sin(dot(sk_i2 + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
+		     "        float sk_g3 = fract(sin(dot(sk_i2 + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
+		     "        float sk_m = mix(mix(sk_g0, sk_g1, sk_u2.x), mix(sk_g2, sk_g3, sk_u2.x), sk_u2.y);\n" +
+		     "        sk_ps += sk_amp * abs(2.0 * sk_m - 1.0);\n" +
+		     "        sk_q *= 2.03;\n" +
+		     "        sk_q2 *= 2.03;\n" +
+		     "        sk_amp *= 0.5;\n" +
+		     "    }\n" +
+		     "}\n" +
+		     "float sk_c = smoothstep(" + CLOUD_ON + ", " + CLOUD_FULL + ", sk_p);\n" +
+		     "float sk_dep = smoothstep(" + CLOUD_FULL + ", " + CLOUD_CORE + ", sk_p);\n" +
+		     "float sk_fade = smoothstep(0.0, 0.10, $0.y);\n" +
+		     /* As shipped: a hemispheric wash that varies across the sky
+		      * rather than across a cloud. Kept at low weight because it
+		      * is the only term that says anything at all where the two
+		      * samples happen to agree. */
+		     "float sk_lit = clamp(dot(normalize(vec3($0.x, 0.35, $0.z)), $1) * 0.5 + 0.55, 0.0, 1.0);\n" +
+		     /* Thin edges transmit, thick core blocks. */
+		     "float sk_lv = mix(1.0, 0.55, sk_dep);\n" +
+		     /* The gain is 2.5 rather than something steeper on purpose.
+		      * At 7.0 this term saturated at one bound or the other for
+		      * 70 to 94% of interior pixels, which is a binary mask, not
+		      * shading. */
+		     "float sk_dir = clamp(0.5 - (sk_ps - sk_p) * 2.5, 0.0, 1.0);\n" +
+		     /* The top is exactly 1.00 and must stay there. An earlier
+		      * revision used 1.18, which makes sk_lv reach 1.18, and
+		      * 0.85 * 1.18 = 1.003 exceeds the clamp below. Measured
+		      * facing the sun, 42.6% of interior pixels pinned at the
+		      * ceiling and the internal spread collapsed to 2 levels of
+		      * 255 -- worse than the shader this replaces. A factor
+		      * feeding a clamped sum must not carry headroom above what
+		      * the clamp admits, or the clamp deletes every other term. */
+		     "sk_lv *= mix(0.32, 1.00, sk_dir);\n" +
+		     "float sk_L = clamp(sk_lit * 0.15 + sk_lv * 0.85, 0.0, 1.0);\n" +
+		     "float sk_day = clamp($4 * 3.0 + 0.35, 0.05, 1.0);\n" +
+		     /* Both ends are further out than sky_clouds'. sky_tone is
+		      * Reinhard with a white point of 0.72, and at 2.20 a lit
+		      * cloud landed within ten levels of the sky under it --
+		      * darker than it, in fact, at the elevations this camera
+		      * shows: 0.739 against 0.881. */
+		     "vec3 sk_cc = mix(vec3(0.45, 0.48, 0.62), vec3(5.00, 4.90, 4.70), sk_L) * sk_day;\n" +
+		     /* No rim term here. One was tried -- a pow(dot(fake normal,
+		      * sun), 6.0) forward-scatter highlight on the thin edges --
+		      * and measured on the target integrated GPU it cost 0.13 ms
+		      * per 1080p frame, better than a fifth of this whole layer's
+		      * budget, to lift the thin ramp by a median of 0.6 levels of
+		      * 255 with the sun ahead and 0.0 with it behind. Peak lift was
+		      * 5.7 levels facing the sun against 5.6 facing away, which is
+		      * a sun-facing term that cannot tell the two directions apart.
+		      * Rendered with and without, side by side at mid and low sun,
+		      * the two are indistinguishable. */
+		     /* Task 4 replaces this line. It is the shipped twilight
+		      * term, and at this peak brightness the tonemap flattens
+		      * it to half the colour spread it had. */
+		     "sk_cc = mix(sk_cc, sk_cc * vec3(1.25, 0.85, 0.62),\n" +
+		     "            exp(-abs($4) * " + TWI_CLOUD + ") * 0.85);\n" +
+		     "return mix($3, sk_cc, sk_c * sk_fade * 0.95);\n",
+		     d, s, t, sky, sh));
+    }};
+
     /* --- public entry points (Z-up in, tonemapped out) --------------- */
 
     public static final Function colA = new Function.Def(VEC3, "sky_colA") {{
@@ -629,7 +786,7 @@ public abstract class SkyLib {
 		     yup.call(wd), yup.call(ws), sunh.call(s),
 		     baseB.call(d, s, sh), disc.call(d, s, g, ch, sh),
 		     stars.call(d, s, t, g, sh),
-		     clouds.call(d, s, t, col, Cons.l(5), sh),
+		     cloudsB.call(d, s, t, col, sh),
 		     tone.call(col), night, e));
     }};
 
