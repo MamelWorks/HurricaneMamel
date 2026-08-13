@@ -172,6 +172,24 @@ public class SkyPalette extends State {
 	return(PEAK * Math.sin(Math.PI * (dt - 0.25) / 0.5));
     }
 
+    /* The azimuth the sun rises on, in radians, in the same frame the server's
+     * lightang is measured in.
+     *
+     * lightang sweeps a full turn per game day and crosses zero near dt 0.25,
+     * which is sunrise. Fitting that model and checking it away from the
+     * crossing -- at dt 0.808 it predicts 2.789 rad against 2.777 measured --
+     * leaves a small offset at the crossing itself, and this is it.
+     *
+     * Only SkyLib.morning reads it, to tell the morning half of the day from
+     * the evening half. The sun vector itself still takes its azimuth from
+     * lightang directly, in from() above, so the drawn disc and the shadows
+     * keep agreeing whatever this constant says.
+     *
+     * If a world rises the sun somewhere else, the morning widening lands on
+     * that world's evening instead. That is the hypothesis ADR-0016 puts up to
+     * be falsified; the failure is ugly, not broken. */
+    public static final double EAST_AZ = 0.012;
+
     /* What the compression above costs everything downstream.
      *
      * The drawn arc peaks at PEAK. The sun the server's own lighting describes
