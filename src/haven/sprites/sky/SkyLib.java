@@ -737,12 +737,28 @@ public abstract class SkyLib {
 		      * samples happen to agree. */
 		     "float sk_lit = clamp(dot(normalize(vec3($0.x, 0.35, $0.z)), $1) * 0.5 + 0.55, 0.0, 1.0);\n" +
 		     /* Thin edges transmit, thick core blocks. */
-		     "float sk_lv = mix(1.0, 0.55, sk_dep);\n" +
+		     /* 0.35 rather than 0.55, and the pair below with it, is the
+		      * "C2" step of an intensity ladder rendered against the
+		      * shipped shader and picked by eye. The three settings
+		      * measured, at midday facing away from the sun:
+		      *
+		      *   C1  sep 11.2  relief 24.7  darkest interior pixel 192
+		      *   C2  sep 15.4  relief 38.8  darkest interior pixel 172
+		      *   C3  sep 20.5  relief 54.2  darkest interior pixel 156
+		      *
+		      * The bound is the darkest pixel, not the spread: below about
+		      * 170 of 255 the mass stops reading as a cloud and starts
+		      * reading as rain. C3 crosses it. */
+		     "float sk_lv = mix(1.0, 0.35, sk_dep);\n" +
 		     /* The gain is 2.5 rather than something steeper on purpose.
 		      * At 7.0 this term saturated at one bound or the other for
 		      * 70 to 94% of interior pixels, which is a binary mask, not
-		      * shading. */
-		     "float sk_dir = clamp(0.5 - (sk_ps - sk_p) * 2.5, 0.0, 1.0);\n" +
+		      * shading.
+		      *
+		      * Raised to 4.0 with the two lines around it, as the "C2"
+		      * step above. 4.0 is well short of where that saturation set
+		      * in and buys most of the relief: 13.6 to 38.8 at midday. */
+		     "float sk_dir = clamp(0.5 - (sk_ps - sk_p) * 4.0, 0.0, 1.0);\n" +
 		     /* The top is exactly 1.00 and must stay there. An earlier
 		      * revision used 1.18, which makes sk_lv reach 1.18, and
 		      * 0.85 * 1.18 = 1.003 exceeds the clamp below. Measured
@@ -751,7 +767,7 @@ public abstract class SkyLib {
 		      * 255 -- worse than the shader this replaces. A factor
 		      * feeding a clamped sum must not carry headroom above what
 		      * the clamp admits, or the clamp deletes every other term. */
-		     "sk_lv *= mix(0.32, 1.00, sk_dir);\n" +
+		     "sk_lv *= mix(0.10, 1.00, sk_dir);\n" +
 		     "float sk_L = clamp(sk_lit * 0.15 + sk_lv * 0.85, 0.0, 1.0);\n" +
 		     "float sk_day = clamp($4 * 3.0 + 0.35, 0.05, 1.0);\n" +
 		     /* Both ends are further out than sky_clouds'. sky_tone is
