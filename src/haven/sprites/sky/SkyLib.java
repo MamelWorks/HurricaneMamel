@@ -219,6 +219,22 @@ public abstract class SkyLib {
      * assumed; ADR-0013 carries the numbers. */
     public static final double CLOUD_REACH = 0.30;
 
+    /* Octaves of the sun-ward sample. The pixel's own sample runs the full four;
+     * this one stops early, and above the cut both accumulators are fed the same
+     * value, so those octaves cancel exactly out of sk_ps - sk_p. Nothing is
+     * biased -- only high-frequency detail is dropped from a shading gradient
+     * that is low-frequency by design.
+     *
+     * It is here because the second sample doubles the noise work and that broke
+     * the frame budget. On the integrated GPU at 1080p the cloud layer costs
+     * 1.74 ms with four octaves against the shipped shader's 1.07, and the gate
+     * is that this change adds under 0.6 ms to what the clouds already cost.
+     * Four adds 0.67 and fails; three adds 0.50; two adds 0.30. Two and three
+     * measure identically on internal contrast and sun response, two costs one
+     * level of 255 on the away-from-the-sun median, and all three are
+     * indistinguishable rendered side by side -- so the budget decides. */
+    public static final int CLOUD_SUN_OCT = 2;
+
     /* --- shared output transform ------------------------------------- */
 
     /* Reinhard + gamma. Sky colour and fog colour MUST both pass through
@@ -628,6 +644,9 @@ public abstract class SkyLib {
      * interior, the same pixel varies 0.0143 across four sun azimuths against
      * 0.0032 for a thickness-only version of the same shader.
      *
+     * The second sample is taken over the first CLOUD_SUN_OCT octaves only; see
+     * that constant for why, and for what it costs.
+     *
      * It is a separate function rather than a flag on sky_clouds because the
      * loop body genuinely differs -- a different basis and two accumulators --
      * and because keeping sky_clouds untouched means Mode A cannot regress,
@@ -655,6 +674,8 @@ public abstract class SkyLib {
 		     "sk_sd = (sk_sl < 1.0e-4) ? vec2(1.0, 0.0) : (sk_sd / sk_sl);\n" +
 		     "vec2 sk_o2 = sk_sd * " + CLOUD_REACH + ";\n" +
 		     "float sk_p = 0.0;\n" +
+		     /* Sun-displaced only through CLOUD_SUN_OCT octaves; above
+		      * that it takes sk_p's own value -- see the guard below. */
 		     "float sk_ps = 0.0;\n" +
 		     "{\n" +
 		     "    vec2 sk_q = sk_uv;\n" +
@@ -674,14 +695,23 @@ public abstract class SkyLib {
 		      * above are not sky_clouds'. */
 		     "        float sk_n = mix(mix(sk_h0, sk_h1, sk_u.x), mix(sk_h2, sk_h3, sk_u.x), sk_u.y);\n" +
 		     "        sk_p += sk_amp * abs(2.0 * sk_n - 1.0);\n" +
-		     "        vec2 sk_i2 = floor(sk_q2), sk_f2 = fract(sk_q2);\n" +
-		     "        vec2 sk_u2 = sk_f2 * sk_f2 * (3.0 - 2.0 * sk_f2);\n" +
-		     "        float sk_g0 = fract(sin(dot(sk_i2 + vec2(0.0, 0.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
-		     "        float sk_g1 = fract(sin(dot(sk_i2 + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
-		     "        float sk_g2 = fract(sin(dot(sk_i2 + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
-		     "        float sk_g3 = fract(sin(dot(sk_i2 + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
-		     "        float sk_m = mix(mix(sk_g0, sk_g1, sk_u2.x), mix(sk_g2, sk_g3, sk_u2.x), sk_u2.y);\n" +
-		     "        sk_ps += sk_amp * abs(2.0 * sk_m - 1.0);\n" +
+		     /* Above CLOUD_SUN_OCT both accumulators take the same value,
+		      * so those octaves cancel out of sk_ps - sk_p exactly. The
+		      * loop bounds are constant, so both drivers unroll it and
+		      * fold this comparison -- the saving is real work removed,
+		      * not a branch traded for arithmetic. */
+		     "        if(sk_o < " + CLOUD_SUN_OCT + ") {\n" +
+		     "            vec2 sk_i2 = floor(sk_q2), sk_f2 = fract(sk_q2);\n" +
+		     "            vec2 sk_u2 = sk_f2 * sk_f2 * (3.0 - 2.0 * sk_f2);\n" +
+		     "            float sk_g0 = fract(sin(dot(sk_i2 + vec2(0.0, 0.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
+		     "            float sk_g1 = fract(sin(dot(sk_i2 + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
+		     "            float sk_g2 = fract(sin(dot(sk_i2 + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
+		     "            float sk_g3 = fract(sin(dot(sk_i2 + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453123);\n" +
+		     "            float sk_m = mix(mix(sk_g0, sk_g1, sk_u2.x), mix(sk_g2, sk_g3, sk_u2.x), sk_u2.y);\n" +
+		     "            sk_ps += sk_amp * abs(2.0 * sk_m - 1.0);\n" +
+		     "        } else {\n" +
+		     "            sk_ps += sk_amp * abs(2.0 * sk_n - 1.0);\n" +
+		     "        }\n" +
 		     "        sk_q *= 2.03;\n" +
 		     "        sk_q2 *= 2.03;\n" +
 		     "        sk_amp *= 0.5;\n" +
