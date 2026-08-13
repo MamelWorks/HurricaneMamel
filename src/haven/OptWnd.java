@@ -3938,6 +3938,10 @@ public class OptWnd extends Window {
 	public static CheckBox disableSnowingCheckBox;
 	public static HSlider treeAndBushScaleSlider;
 	private Button treeAndBushScaleResetButton;
+	public static HSlider skyFogWidthSlider;
+	private Button skyFogWidthResetButton;
+	public static HSlider skyFogStrengthSlider;
+	private Button skyFogStrengthResetButton;
 	public static CheckBox disableTreeAndBushSwayingCheckBox;
 	public static CheckBox disableIndustrialSmokeCheckBox;
 	public static CheckBox disableScentSmokeCheckBox;
@@ -4224,6 +4228,44 @@ public class OptWnd extends Window {
 				}
 			}, rightColumn.pos("bl").adds(0, 4));
 			rightColumn.tooltip = skyboxQualityTooltip;
+
+			rightColumn = add(new Label("Horizon Fog Width:"), rightColumn.pos("bl").adds(0, 14).xs(290));
+			rightColumn = add(skyFogWidthSlider = new HSlider(UI.scale(200), 0, 100, Utils.getprefi("skyboxFogBand", 100)) {
+				protected void attach(UI ui) {
+					super.attach(ui);
+					val = Utils.getprefi("skyboxFogBand", 100);
+				}
+				public void changed() {
+					Utils.setprefi("skyboxFogBand", val);
+					SkyPalette.reload();
+				}
+			}, rightColumn.pos("bl").adds(0, 6));
+			skyFogWidthSlider.tooltip = skyFogWidthTooltip;
+			add(skyFogWidthResetButton = new Button(UI.scale(70), "Reset", false).action(() -> {
+				skyFogWidthSlider.val = 100;
+				Utils.setprefi("skyboxFogBand", 100);
+				SkyPalette.reload();
+			}), rightColumn.pos("bl").adds(210, -20));
+			skyFogWidthResetButton.tooltip = resetButtonTooltip;
+
+			rightColumn = add(new Label("Horizon Fog Strength:"), rightColumn.pos("bl").adds(0, 14).xs(290));
+			rightColumn = add(skyFogStrengthSlider = new HSlider(UI.scale(200), 0, 100, Utils.getprefi("skyboxFogStrength", 100)) {
+				protected void attach(UI ui) {
+					super.attach(ui);
+					val = Utils.getprefi("skyboxFogStrength", 100);
+				}
+				public void changed() {
+					Utils.setprefi("skyboxFogStrength", val);
+					SkyPalette.reload();
+				}
+			}, rightColumn.pos("bl").adds(0, 6));
+			skyFogStrengthSlider.tooltip = skyFogStrengthTooltip;
+			add(skyFogStrengthResetButton = new Button(UI.scale(70), "Reset", false).action(() -> {
+				skyFogStrengthSlider.val = 100;
+				Utils.setprefi("skyboxFogStrength", 100);
+				SkyPalette.reload();
+			}), rightColumn.pos("bl").adds(210, -20));
+			skyFogStrengthResetButton.tooltip = resetButtonTooltip;
 
 			rightColumn = add(new Label("Trees & Bushes Scale:"), rightColumn.pos("bl").adds(0, 14).xs(290));
 			rightColumn = add(treeAndBushScaleSlider = new HSlider(UI.scale(200), 30, 100, Utils.getprefi("treeAndBushScale", 100)) {
@@ -5632,6 +5674,13 @@ public class OptWnd extends Window {
 
 	// Misc/Other
 	private static final Object resetButtonTooltip = RichText.render("Reset to default value.", UI.scale(300));
+	private static final Object skyFogWidthTooltip = RichText.render("How wide the haze band at the edge of the loaded map is, from its full width down to nothing." +
+			"\n\nThe band exists to hide the edge where the world stops being drawn. Narrowing it gives you back terrain the client had already drawn and the fog was covering, and it stays opaque where it matters, so the edge stays hidden at any setting above zero." +
+			"\n\n$col[218,163,0]{At 0 the fog is switched off entirely and the draw distance ends in a hard line.}" +
+			"\n\nTakes effect as you drag. No relog.", UI.scale(300));
+	private static final Object skyFogStrengthTooltip = RichText.render("How much of the sky's colour the haze band mixes in, from full down to none." +
+			"\n\nThis leaves the band the same width and makes it see-through. The terrain does not come back; it is just less washed out. Partway down, the edge where the world stops being drawn starts to show through the haze." +
+			"\n\nTakes effect as you drag. No relog.", UI.scale(300));
 	private static final Object genericHasKeybindTooltip = RichText.render("$col[218,163,0]{Keybind:} $col[185,185,185]{This can also be toggled using a keybind.}", UI.scale(300));
 
 	@Override
