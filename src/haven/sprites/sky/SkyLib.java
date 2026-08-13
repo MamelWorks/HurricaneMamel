@@ -180,6 +180,30 @@ public abstract class SkyLib {
      * Wider on purpose; this is the one constant here chosen by eye. */
     public static final double TWI_CLOUD = 9.5;
 
+    /* The morning half of mode B's night, and only the morning half.
+     *
+     * sk_nit is scaled by 1 - exp(sh), which GROWS with the sun's depression:
+     * 0.6921 at midnight, 0.19 at 05:20. So the night was three times brighter
+     * in the small hours than in the hour before dawn, and the sky bottomed out
+     * 40 game minutes BEFORE sunrise while the client's own calendar had
+     * already been drawing a sunrise since 04:05. Measured whole-frame mean:
+     * 0.2150 at 00:00, 0.1733 at 04:51, 0.1617 at 05:20, 0.3832 at 06:00.
+     *
+     * NIGHT_RATE steepens that curve so it has done most of its work by
+     * astronomical twilight instead of spreading over the whole night, and
+     * NIGHT_SCALE is then forced rather than chosen: 0.038 * 0.6921 is what
+     * makes midnight come out where the shipped sky puts it, so the gate's
+     * other crossing is a crossfade between two equal values.
+     *
+     * TWI_DAWN is the morning's own twilight falloff. TWI is set so the glow is
+     * 1% of its horizon value at 18 degrees of depression; at 3.50 it is still
+     * 44% there, which is what puts a warm side on the sky an hour before the
+     * disc arrives. It keeps TWI's 0.10 coefficient because that coefficient is
+     * what sets the value AT the horizon, and sunrise was judged there. */
+    public static final double NIGHT_RATE = 12.0;
+    public static final double NIGHT_SCALE = 0.0263;   /* 0.038 * 0.6921 */
+    public static final double TWI_DAWN = 3.50;        /* per radian, mornings only */
+
     /* --- Mode B cloud constants (ADR-0013) ---------------------------------
      *
      * sky_cloudsB builds a BILLOW field -- abs(2n-1) per octave -- which is not
@@ -448,6 +472,53 @@ public abstract class SkyLib {
 		     "sk_col = mix(sk_col, sk_hor * vec3(0.55, 0.54, 0.52),\n" +
 		     "             pow(clamp(-$0.y, 0.0, 1.0), 0.7));\n" +
 		     "return sk_col;\n", d, s, sh));
+    }};
+
+    /* 1 in the morning, 0 in the afternoon.
+     *
+     * Every twilight term in baseB reads the sun's ELEVATION, and elevation is
+     * a sine about noon -- 04:51 and 19:08 arrive at the shader as the same
+     * number to 8e-17, and the sky they produce is bit-identical. So elevation
+     * cannot tell dawn from dusk, and anything keyed on it moves both. The
+     * sun's horizontal direction can: it is 180 degrees apart at the two ends
+     * of the day.
+     *
+     * The parameter is the Y-UP sun, the one sky_yup produced -- yup maps world
+     * (x, y, z) to (x, z, y), so this vector's .xz IS the world's horizontal
+     * plane, which is the plane lightang is measured in. Handing it the
+     * world-space sun would put the sun's height into .z and skew the gate
+     * silently.
+     *
+     * Any gate that halves a circle has two boundaries. This one turns where
+     * the sun is due north or south -- midnight and noon -- and at both the dot
+     * is 0, so this returns exactly 0.5. Neither is a decision; both are the
+     * fence. What makes that cheap differs per term:
+     *
+     *   sk_nit is genuinely inert at noon -- the day/night blend gives it zero
+     *   weight with the sun up -- and at midnight NIGHT_SCALE makes the two
+     *   sides of its mix equal, so half of either is the same number.
+     *
+     *   The glow is NOT inert, only small. Its only gate is exp(-abs(sh) * k)
+     *   and k is what this swaps: at noon 3.2e-09 against 1.6e-03, so 8.1e-04
+     *   survives at 0.5. That is 2.7e-05 on the darkest pixel after the
+     *   tonemap, and most of the 2.4e-03 measured at midnight.
+     *
+     * Both are under a level of 255 and both are accepted. They scale with
+     * TWI_DAWN, though: at 1.00 instead of 3.50 the noon leak is nineteen times
+     * larger and would stop being invisible. The crossings are cheap at this
+     * width, not free at every width.
+     *
+     * The zero-length guard is horB's, for the same reason: normalize(vec2(0))
+     * is NaN and would poison the whole sky. Unreachable with a real sun, which
+     * cannot exceed PEAK of elevation, but the vector is a uniform. */
+    public static final Function morning = new Function.Def(FLOAT, "sky_morning") {{
+	Expression s = param(IN, VEC3).ref();
+	code.add(raw("vec2 sk_az = vec2($0.x, $0.z);\n" +
+		     "float sk_al = length(sk_az);\n" +
+		     "sk_az = (sk_al < 1.0e-5) ? vec2(1.0, 0.0) : (sk_az / sk_al);\n" +
+		     "return smoothstep(-0.25, 0.25, dot(sk_az, vec2(" +
+		     (float)Math.cos(SkyPalette.EAST_AZ) + ", " +
+		     (float)Math.sin(SkyPalette.EAST_AZ) + ")));\n", s));
     }};
 
     /* --- Mode B: Rayleigh + Mie (Y-up, no sun disc) ------------------- */
