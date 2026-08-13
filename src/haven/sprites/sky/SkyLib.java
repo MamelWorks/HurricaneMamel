@@ -189,18 +189,37 @@ public abstract class SkyLib {
      * already been drawing a sunrise since 04:05. Measured whole-frame mean:
      * 0.2150 at 00:00, 0.1733 at 04:51, 0.1617 at 05:20, 0.3832 at 06:00.
      *
-     * NIGHT_RATE steepens that curve so it has done most of its work by
-     * astronomical twilight instead of spreading over the whole night, and
-     * NIGHT_SCALE is then forced rather than chosen: 0.038 * 0.6921 is what
+     * NIGHT_RATE steepens that curve so it has done most of its work early,
+     * and NIGHT_SCALE is then forced rather than chosen: 0.038 * 0.6921 is what
      * makes midnight come out where the shipped sky puts it, so the gate's
      * other crossing is a crossfade between two equal values.
+     *
+     * NIGHT_RATE is 4.0 and not the 12.0 first shipped, and the difference is
+     * the whole reason to read this paragraph. 1 - exp(sh * RATE) does not
+     * remove the inversion, it COMPRESSES it: a steeper curve saturates sooner
+     * and then still has to fall to zero at the horizon. At 12.0 it was still
+     * at 46% of its midnight value with the sun 2.9 degrees down, where the
+     * shipped curve was at 7% -- so the last ten minutes before sunrise got a
+     * blue wash laid over exactly the moment the sky had started to warm, and
+     * the ground haze went from brown to grey. Whole-frame median red minus
+     * blue at 05:50, in levels: shipped +20.6, at 12.0 +10.1, at 4.0 +21.7.
+     * 4.0 also costs almost nothing at the far end: 0.2454 against 0.2619 at
+     * 04:51, still up from the shipped 0.1864.
+     *
+     * That defect hid for a whole review because it was looked for in the
+     * frame's MEDIAN. The glow below carries pow(mu, 5), so it is welded to the
+     * sun's own direction and reaches few pixels; sk_nit is uniform over the
+     * fragment and reaches all of them. A median therefore sees the night term
+     * and almost none of the glow, and reported constant hue while the frame
+     * was visibly cooling. Measure this pair on a render, not on a statistic.
      *
      * TWI_DAWN is the morning's own twilight falloff. TWI is set so the glow is
      * 1% of its horizon value at 18 degrees of depression; at 3.50 it is still
      * 44% there, which is what puts a warm side on the sky an hour before the
-     * disc arrives. It keeps TWI's 0.10 coefficient because that coefficient is
-     * what sets the value AT the horizon, and sunrise was judged there. */
-    public static final double NIGHT_RATE = 12.0;
+     * disc arrives. Its 0.10 coefficient is not a choice either: both sides of
+     * the mix reduce to 0.10 at sh = 0, which is what keeps sunrise itself
+     * bit-identical. Warmth added by raising it would move 06:00. */
+    public static final double NIGHT_RATE = 4.0;
     public static final double NIGHT_SCALE = 0.0263;   /* 0.038 * 0.6921 */
     public static final double TWI_DAWN = 3.50;        /* per radian, mornings only */
 
@@ -488,6 +507,13 @@ public abstract class SkyLib {
      * plane, which is the plane lightang is measured in. Handing it the
      * world-space sun would put the sun's height into .z and skew the gate
      * silently.
+     *
+     * The 0.25 half-width is in dot space, not in azimuth: it puts the
+     * crossfade between 75.5 and 104.5 degrees off east, which the sun takes
+     * about an hour and 56 minutes to cross. That is the parameter that decides
+     * how long each turn takes, and it was not derived -- it was chosen to be
+     * slow enough that neither crossing can read as an edge, and both crossings
+     * sit in hours nobody was tuning. Narrowing it sharpens both fences.
      *
      * Any gate that halves a circle has two boundaries. This one turns where
      * the sun is due north or south -- midnight and noon -- and at both the dot
