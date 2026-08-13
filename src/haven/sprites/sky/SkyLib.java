@@ -148,6 +148,25 @@ public abstract class SkyLib {
     public static final double CIVIL = 0.10472;   /* rad, 6 degrees */
     public static final double ASTRO = 0.31416;   /* rad, 18 degrees */
 
+    /* The scale the day-to-night blends run on, and it is CIVIL rather than
+     * ASTRO because this game's night is not astronomy's.
+     *
+     * The client's own calendar swaps its day sky for its night sky in a single
+     * frame (Cal.java:58), keyed on ast.night, which ADR-0006 measured going
+     * true at dt 0.75060 -- 18:01, one game minute after the dial puts the sun
+     * on the horizon (Cal.java:63). The terrain's lighting steps with it: over
+     * the 28 game minutes from 17:33 to 18:02, measured in the client, the
+     * ground fell 56% and this sky fell 12%.
+     *
+     * On the ASTRO scale sky_sunh reaches -18 degrees at dt 0.79284, so the sky
+     * finished its night at 19:02 -- 61 game minutes after the calendar said
+     * night. CIVIL puts it at 18:20, which is 19. Rendered at 18, 6 and 3
+     * degrees and chosen from those: 3 degrees darkens the sky faster than the
+     * clouds' own day factor can follow, leaving white cloud over a black sky.
+     *
+     * Astronomy still owns TWI, which is a glow's falloff and not a clock. */
+    public static final double NIGHT_EDGE = CIVIL;
+
     /* Twilight brightness against the sun's depression. Set so the glow is 1%
      * of its horizon value at the astronomical end: exp(-ASTRO * TWI) = 0.01.
      *
@@ -347,11 +366,13 @@ public abstract class SkyLib {
 	/* 2*pi*226 is 1419.9999, an integer to one part in ten million, so
 	 * wrapping the column index closes the ring at azimuth +-pi with no
 	 * seam and no runt cell. */
-	/* Full strength at the astronomical end of twilight, which is what that
-	 * boundary means: the point where the sky stops interfering with the
-	 * stars. The old gate on the compressed sine reached full only at 47
-	 * real degrees of depression -- deep into the night. */
-	code.add(raw("float sk_night = clamp(-$4 / " + ASTRO + ", 0.0, 1.0);\n" +
+	/* Full strength on NIGHT_EDGE, with the sky's own blend, so the stars
+	 * arrive as the sky that was hiding them goes out. Left on ASTRO they
+	 * reached full at 19:02 over a sky that had been dark since 18:20 --
+	 * legible, but forty minutes of a night still filling in after the
+	 * calendar had called it. The old gate on the compressed sine was worse
+	 * again: full only at 47 real degrees of depression. */
+	code.add(raw("float sk_night = clamp(-$4 / " + NIGHT_EDGE + ", 0.0, 1.0);\n" +
 		     "float sk_hz = clamp($0.y * 3.0, 0.0, 1.0);\n" +
 		     "if(sk_night <= 0.001 || sk_hz <= 0.0) return vec3(0.0);\n" +
 		     "vec2 sk_g = vec2((atan($0.z, $0.x) + 3.14159265) * " + STAR_CELL + ",\n" +
@@ -493,7 +514,7 @@ public abstract class SkyLib {
 		     "sk_day *= mix(1.0, sk_side, sk_low);\n" +
 		     /* max() because 1 - exp() goes negative once the sun is up,
 		      * and the blend still gives it weight between the horizon
-		      * and ASTRO -- the old line had the same wart and was
+		      * and NIGHT_EDGE -- the old line had the same wart and was
 		      * subtracting radiance through the whole morning. */
 		     "vec3 sk_nit = vec3(0.45, 0.62, 1.05) * max(1.0 - exp($2), 0.0) * 0.038;\n" +
 		     /* The blend that made this mode have no night at all.
@@ -506,13 +527,17 @@ public abstract class SkyLib {
 		      * Measured at 02:27 the sky came out (144,139,122), a beige
 		      * band brighter than this same model's own noon zenith.
 		      *
-		      * Now it spans its full range against real elevation, and
-		      * the scale is astronomy's: full night at ASTRO, full day
-		      * at the same angle above. 0.5 at the horizon is kept
+		      * Now it spans its full range against real elevation, on
+		      * NIGHT_EDGE: full night one such angle below the horizon,
+		      * full day one above. 0.5 at the horizon is kept
 		      * deliberately -- it is what sunset and sunrise were judged
-		      * on, and both come out bit-identical to before. */
+		      * on, and both come out bit-identical to before.
+		      *
+		      * The scale was ASTRO and is the reason the sky finished
+		      * its night an hour after the client's own calendar did.
+		      * See NIGHT_EDGE for the measurement. */
 		     "vec3 sk_out = sk_ray * sk_mie * mix(sk_day, sk_nit,\n" +
-		     "              clamp(0.5 - $2 / " + (2.0 * ASTRO) + ", 0.0, 1.0));\n" +
+		     "              clamp(0.5 - $2 / " + (2.0 * NIGHT_EDGE) + ", 0.0, 1.0));\n" +
 		     /* The one thing mode A had that this model has no
 		      * equivalent of: a broad warm wash on the sun's side. Same
 		      * shape as baseA's pow(dot, 5) dusk term and gated by the
