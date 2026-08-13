@@ -190,28 +190,47 @@ public abstract class SkyLib {
      * 0.2150 at 00:00, 0.1733 at 04:51, 0.1617 at 05:20, 0.3832 at 06:00.
      *
      * NIGHT_RATE steepens that curve so it has done most of its work early,
-     * and NIGHT_SCALE is then forced rather than chosen: 0.038 * 0.6921 is what
-     * makes midnight come out where the shipped sky puts it, so the gate's
-     * other crossing is a crossfade between two equal values.
+     * and NIGHT_SCALE is then forced rather than chosen: it is whatever makes
+     * midnight come out where the shipped sky puts it, so the gate's other
+     * crossing is a crossfade between two equal values. That division has to be
+     * redone whenever NIGHT_RATE moves. At midnight sh is -1.1781, so the
+     * morning curve stands at 1 - exp(5 * -1.1781) = 0.99724, and the shipped
+     * 0.038 * 0.6921 = 0.026301 divided by it is 0.026374.
      *
-     * NIGHT_RATE is 4.0 and not the 12.0 first shipped, and the difference is
-     * the whole reason to read this paragraph. 1 - exp(sh * RATE) does not
-     * remove the inversion, it COMPRESSES it: a steeper curve saturates sooner
-     * and then still has to fall to zero at the horizon. At 12.0 it was still
-     * at 46% of its midnight value with the sun 2.9 degrees down, where the
-     * shipped curve was at 7% -- so the last ten minutes before sunrise got a
-     * blue wash laid over exactly the moment the sky had started to warm, and
-     * the ground haze went from brown to grey. Whole-frame median red minus
-     * blue at 05:50, in levels: shipped +20.6, at 12.0 +10.1, at 4.0 +21.7.
-     * 4.0 also costs almost nothing at the far end: 0.2454 against 0.2619 at
-     * 04:51, still up from the shipped 0.1864.
+     * NIGHT_RATE is 5.0, and the two values it is not are both instructive.
      *
-     * That defect hid for a whole review because it was looked for in the
-     * frame's MEDIAN. The glow below carries pow(mu, 5), so it is welded to the
-     * sun's own direction and reaches few pixels; sk_nit is uniform over the
-     * fragment and reaches all of them. A median therefore sees the night term
-     * and almost none of the glow, and reported constant hue while the frame
-     * was visibly cooling. Measure this pair on a render, not on a statistic.
+     * 12.0 shipped first. 1 - exp(sh * RATE) does not remove the inversion, it
+     * COMPRESSES it: a steeper curve saturates sooner and then still has to
+     * fall to zero at the horizon. At 12.0 it was still at 46% of its midnight
+     * value with the sun 2.9 degrees down, where the shipped curve was at 7%
+     * -- so the last ten minutes before sunrise got a blue wash laid over
+     * exactly the moment the sky had started to warm, and the ground haze went
+     * from brown to grey. Whole-frame median red minus blue at 05:50, in
+     * levels: shipped +20.6, at 12.0 +10.1, at 5.0 +19.6.
+     *
+     * 4.0 replaced it, and was chosen from a sweep that only ever pointed the
+     * camera AT the sun. Turn 180 degrees and the trade reverses, monotonically
+     * across the whole family -- night minimum as a fraction of that shader's
+     * own midnight, facing the sun and facing away:
+     *
+     *      shipped  -23.7%  -40.8%      5.0   +3.1%  -21.6%
+     *          4.0   +2.8%  -25.5%     12.0   +3.2%   -6.4%
+     *
+     * No value fixes both, because the structure will not allow it: away from
+     * the sun the sky is held up by sk_nit alone, which must reach zero at the
+     * horizon, while the dawn's warmth carries pow(mu, 5) and is welded to the
+     * sun's own bearing. Curing the far side needs a dawn term that is not
+     * weighted by mu -- a different shape, not a different constant. 5.0 buys
+     * four points of it for about one level of morning hue, and is a stopping
+     * place, not a solution. See ADR-0016.
+     *
+     * The 12.0 defect hid for a whole review, and not because the instrument
+     * was blind. Ablating the two terms at 05:50 gives a median red minus blue
+     * of -50.9 for the night alone and -16.0 for the glow alone against -35.8
+     * for both, so the median sees them ADDITIVELY and would have shown the
+     * cooling. It did show it: 05:50 was in the table, at +20.6 falling to
+     * +10.1, under a sentence saying the hue barely moved. The failure was
+     * prose overruling a row of its own table. Read the rows.
      *
      * TWI_DAWN is the morning's own twilight falloff. TWI is set so the glow is
      * 1% of its horizon value at 18 degrees of depression; at 3.50 it is still
@@ -219,8 +238,8 @@ public abstract class SkyLib {
      * disc arrives. Its 0.10 coefficient is not a choice either: both sides of
      * the mix reduce to 0.10 at sh = 0, which is what keeps sunrise itself
      * bit-identical. Warmth added by raising it would move 06:00. */
-    public static final double NIGHT_RATE = 4.0;
-    public static final double NIGHT_SCALE = 0.0263;   /* 0.038 * 0.6921 */
+    public static final double NIGHT_RATE = 5.0;
+    public static final double NIGHT_SCALE = 0.026374; /* 0.038 * 0.6921 / 0.99724 */
     public static final double TWI_DAWN = 3.50;        /* per radian, mornings only */
 
     /* --- Mode B cloud constants (ADR-0013) ---------------------------------
@@ -619,9 +638,11 @@ public abstract class SkyLib {
 		      * subtracting radiance through the whole morning. */
 		     /* Two nights, crossfaded on sky_morning. The afternoon
 		      * side is the shipped expression, untouched, so dusk comes
-		      * out bit-identical. The morning side saturates NIGHT_RATE
-		      * times faster and is scaled so both agree at midnight,
-		      * which is where the crossfade turns. */
+		      * out to one ulp -- 8.9e-08 per pixel from 18:00 to 22:00,
+		      * which is the gate's own float error, not a colour change.
+		      * The morning side saturates NIGHT_RATE times faster and is
+		      * scaled so both agree at midnight, where the crossfade
+		      * turns. */
 		     "vec3 sk_nit = vec3(0.45, 0.62, 1.05)\n" +
 		     "              * mix(max(1.0 - exp($2), 0.0) * 0.038,\n" +
 		     "                    max(1.0 - exp($2 * " + NIGHT_RATE + "), 0.0) * " + NIGHT_SCALE + ", $3);\n" +
