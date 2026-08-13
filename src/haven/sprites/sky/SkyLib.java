@@ -196,6 +196,29 @@ public abstract class SkyLib {
     public static final double CLOUD_DRIFT_X = 0.00422;   /* 0.0050 * 3.8/4.5 */
     public static final double CLOUD_DRIFT_Y = 0.00169;   /* 0.0020 * 3.8/4.5 */
 
+    /* How far toward the sun the second sample is taken, in noise cells. This is
+     * the whole of the shading that follows the sun, so it is measured on the
+     * term itself -- sd of sk_dir inside the cloud, and how far sk_dir moves when
+     * only the sun's azimuth does -- and not on the frame's contrast, which
+     * cannot tell shading that follows the sun from shading that follows
+     * thickness. The sun response peaks here and falls off both ways: 0.29 at
+     * 0.30 cells against 0.27 at 0.20, 0.22 at 0.60 and 0.14 at 1.40. Below about
+     * 0.2 the two samples merge and the directional term goes flat at 0.5; above
+     * about 0.9 the shadow detaches from the cloud casting it and smears into
+     * clear sky, which the contrast figure rewards and the eye does not.
+     *
+     * It is a CONSTANT and not a function of the sun's elevation, which is not
+     * what this was meant to be. Shadow length goes as 1/tan(elevation), so the
+     * reach was to fall off with the sun's real elevation per ADR-0010 and
+     * ADR-0011. Two things killed that. The term reads normalize(s.xz), a unit
+     * azimuth direction, so the sun's height has no path into it at all -- the
+     * sweep returns byte-identical rows at three elevations. And centring
+     * 1/tan on this value demands 0.106 cells at high sun and 1.062 at low, a
+     * tenfold swing across a usable band only twofold wide, so the law would
+     * degrade every elevation but the one it was centred on. Measured, not
+     * assumed; ADR-0013 carries the numbers. */
+    public static final double CLOUD_REACH = 0.30;
+
     /* --- shared output transform ------------------------------------- */
 
     /* Reinhard + gamma. Sky colour and fog colour MUST both pass through
@@ -630,9 +653,7 @@ public abstract class SkyLib {
 		     "vec2 sk_sd = $1.xz;\n" +
 		     "float sk_sl = length(sk_sd);\n" +
 		     "sk_sd = (sk_sl < 1.0e-4) ? vec2(1.0, 0.0) : (sk_sd / sk_sl);\n" +
-		     /* Fixed reach for now -- Task 3 replaces this line with one
-		      * that falls off with the sun's real elevation. */
-		     "vec2 sk_o2 = sk_sd * 0.60;\n" +
+		     "vec2 sk_o2 = sk_sd * " + CLOUD_REACH + ";\n" +
 		     "float sk_p = 0.0;\n" +
 		     "float sk_ps = 0.0;\n" +
 		     "{\n" +
