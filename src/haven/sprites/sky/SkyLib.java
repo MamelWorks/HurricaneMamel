@@ -529,6 +529,10 @@ public abstract class SkyLib {
 	/* The sun's real elevation, from sky_sunh -- same reason baseA takes
 	 * it, and the defect ADR-0010 left open here. */
 	Expression sh = param(IN, FLOAT).ref();
+	/* sky_morning, for the same reason again: this function is called six
+	 * times per fragment -- once from colB and five times from horB -- and
+	 * the gate is the same value in all six. */
+	Expression am = param(IN, FLOAT).ref();
 	/* 0.98 was a cloud's asymmetry, not an atmosphere's. Measured on the
 	 * phase function it took half the sun's brightness away within ONE
 	 * degree and 97% within five, so the sun had no halo at all -- just a
@@ -587,7 +591,14 @@ public abstract class SkyLib {
 		      * and the blend still gives it weight between the horizon
 		      * and NIGHT_EDGE -- the old line had the same wart and was
 		      * subtracting radiance through the whole morning. */
-		     "vec3 sk_nit = vec3(0.45, 0.62, 1.05) * max(1.0 - exp($2), 0.0) * 0.038;\n" +
+		     /* Two nights, crossfaded on sky_morning. The afternoon
+		      * side is the shipped expression, untouched, so dusk comes
+		      * out bit-identical. The morning side saturates NIGHT_RATE
+		      * times faster and is scaled so both agree at midnight,
+		      * which is where the crossfade turns. */
+		     "vec3 sk_nit = vec3(0.45, 0.62, 1.05)\n" +
+		     "              * mix(max(1.0 - exp($2), 0.0) * 0.038,\n" +
+		     "                    max(1.0 - exp($2 * " + NIGHT_RATE + "), 0.0) * " + NIGHT_SCALE + ", $3);\n" +
 		     /* The blend that made this mode have no night at all.
 		      *
 		      * -sun.y * 0.2 + 0.5 was written for a sun whose y spans
@@ -623,13 +634,21 @@ public abstract class SkyLib {
 		      *
 		      * 0.10 rather than more: at 0.18 the near side filled with
 		      * a heavy brown rather than a wash. */
+		     /* Same crossfade. The morning falloff is wide enough to
+		      * still be worth something an hour before the disc; the
+		      * evening keeps TWI, which is what ADR-0015 was tuned on.
+		      * Same 0.10 on both sides -- it is the value at the
+		      * horizon, and the horizon is where both ends were
+		      * judged. */
 		     "sk_out += vec3(1.0, 0.42, 0.13) * pow(clamp(sk_mu, 0.0, 1.0), 5.0)\n" +
-		     "          * (1.0 - clamp($0.y, 0.0, 1.0)) * exp(-abs($2) * " + TWI + ") * 0.10;\n" +
+		     "          * (1.0 - clamp($0.y, 0.0, 1.0))\n" +
+		     "          * mix(exp(-abs($2) * " + TWI + ") * 0.10,\n" +
+		     "                exp(-abs($2) * " + TWI_DAWN + ") * 0.10, $3);\n" +
 		     /* Same below-horizon continuation as baseA -- see the
 		      * note there. sk_pos.y was already clamped positive, so
 		      * sk_out holds the horizon value for downward rays. */
 		     "return mix(sk_out, sk_out * vec3(0.55, 0.54, 0.52),\n" +
-		     "           pow(clamp(-$0.y, 0.0, 1.0), 0.7));\n", d, s, sh));
+		     "           pow(clamp(-$0.y, 0.0, 1.0), 0.7));\n", d, s, sh, am));
     }};
 
     /* --- clouds (Y-up) ----------------------------------------------- */
@@ -1000,9 +1019,12 @@ public abstract class SkyLib {
 	 * below, and read before the rebuild overwrites sk_d. */
 	Expression ch = id("sk_hl");
 	Expression sh = id("sk_sh");
+	/* One sky_morning for the whole fragment, as sk_sh is one asin. */
+	Expression am = id("sk_am");
 	code.add(raw("vec3 sk_d = $0;\n" +
 		     "vec3 sk_s = $1;\n" +
 		     "float sk_sh = $2;\n" +
+		     "float sk_am = $10;\n" +
 		     /* Same rebuild as colA -- see the note there. */
 		     "float sk_e = clamp($9, -1.5533, 1.5533);\n" +
 		     "vec2 sk_hz = vec2(sk_d.x, sk_d.z);\n" +
@@ -1014,10 +1036,10 @@ public abstract class SkyLib {
 		     "sk_col = $6;\n" +
 		     "return mix($7, vec3(1.0), $8);\n",
 		     yup.call(wd), yup.call(ws), sunh.call(s),
-		     baseB.call(d, s, sh), disc.call(d, s, g, ch, sh),
+		     baseB.call(d, s, sh, am), disc.call(d, s, g, ch, sh),
 		     stars.call(d, s, t, g, sh),
 		     cloudsB.call(d, s, t, col, sh),
-		     tone.call(col), night, e));
+		     tone.call(col), night, e, morning.call(s)));
     }};
 
     /* Fog colour. Deliberately calls base* (no sun disc) so a 6x overbright
@@ -1052,9 +1074,12 @@ public abstract class SkyLib {
 	Expression t0 = id("sk_t0"), t1 = id("sk_t1"), t2 = id("sk_t2"), t3 = id("sk_t3"), t4 = id("sk_t4");
 	/* One asin for all five samples, as colB does for its own. */
 	Expression sh = id("sk_sh");
+	/* And one sky_morning for all five. */
+	Expression am = id("sk_am");
 	code.add(raw("vec3 sk_w = $0;\n" +
 		     "vec3 sk_s = $1;\n" +
 		     "float sk_sh = $2;\n" +
+		     "float sk_am = $10;\n" +
 		     /* Guard: looking straight down makes sk_w.xz zero, and
 		      * normalize(vec3(0)) is NaN -- which then poisons the
 		      * mix() in SkyFog even at a fog factor of 0. Reachable
@@ -1070,9 +1095,10 @@ public abstract class SkyLib {
 		     "vec3 sk_acc = $3 * 0.16 + $4 * 0.22 + $5 * 0.26 + $6 * 0.22 + $7 * 0.14;\n" +
 		     "return mix($8, vec3(1.0), $9);\n",
 		     yup.call(wd), yup.call(ws), sunh.call(s),
-		     baseB.call(t0, s, sh), baseB.call(t1, s, sh), baseB.call(t2, s, sh),
-		     baseB.call(t3, s, sh), baseB.call(t4, s, sh),
+		     baseB.call(t0, s, sh, am), baseB.call(t1, s, sh, am),
+		     baseB.call(t2, s, sh, am), baseB.call(t3, s, sh, am),
+		     baseB.call(t4, s, sh, am),
 		     tone.call(desat.call(acc, Cons.l(DESAT))),
-		     night));
+		     night, morning.call(s)));
     }};
 }
