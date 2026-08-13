@@ -185,7 +185,8 @@ public abstract class SkyLib {
      * sk_nit is scaled by 1 - exp(sh), which GROWS with the sun's depression:
      * 0.6921 at midnight, 0.19 at 05:20. So the night was three times brighter
      * in the small hours than in the hour before dawn, and the sky bottomed out
-     * 40 game minutes BEFORE sunrise while the client's own calendar had
+     * 34 game minutes BEFORE sunrise -- 05:26, found by a five-minute scan;
+     * three files here once said 05:20 -- while the client's own calendar had
      * already been drawing a sunrise since 04:05. Measured whole-frame mean:
      * 0.2150 at 00:00, 0.1733 at 04:51, 0.1617 at 05:20, 0.3832 at 06:00.
      *
@@ -213,8 +214,13 @@ public abstract class SkyLib {
      * across the whole family -- night minimum as a fraction of that shader's
      * own midnight, facing the sun and facing away:
      *
-     *      shipped  -23.7%  -40.8%      5.0   +3.1%  -21.6%
+     *      shipped  -23.7%  -41.1%      5.0   +3.1%  -21.8%
      *          4.0   +2.8%  -25.5%     12.0   +3.2%   -6.4%
+     *
+     * Those away figures are the 180-degree bearing, which is the FLATTERING
+     * one. Over the whole rose the accepted shader reads -17.9% at 90 degrees,
+     * -30.8% at 135, -21.8% at 180, -18.6% at 225 and -26.3% at 270: the worst
+     * of the far side is broadside, not opposite. See ADR-0016.
      *
      * No value fixes both, because the structure will not allow it: away from
      * the sun the sky is held up by sk_nit alone, which must reach zero at the
@@ -233,8 +239,11 @@ public abstract class SkyLib {
      * prose overruling a row of its own table. Read the rows.
      *
      * TWI_DAWN is the morning's own twilight falloff. TWI is set so the glow is
-     * 1% of its horizon value at 18 degrees of depression; at 3.50 it is still
-     * 44% there, which is what puts a warm side on the sky an hour before the
+     * 1% of its horizon value at 18 degrees of depression -- exp(-14.66*0.3142)
+     * = 0.0100 -- and at 3.50 it is still 33% there, exp(-3.50*0.3142) = 0.333.
+     * An earlier draft said 44%, which is the figure for a rate of 2.61 and was
+     * left behind by a change to the constant. That is what puts a warm side on
+     * the sky an hour before the
      * disc arrives. Its 0.10 coefficient is not a choice either: both sides of
      * the mix reduce to 0.10 at sh = 0, which is what keeps sunrise itself
      * bit-identical. Warmth added by raising it would move 06:00. */
