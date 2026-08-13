@@ -739,8 +739,11 @@ public abstract class SkyLib {
 		     /* Thin edges transmit, thick core blocks. */
 		     /* 0.35 rather than 0.55, and the pair below with it, is the
 		      * "C2" step of an intensity ladder rendered against the
-		      * shipped shader and picked by eye. The three settings
-		      * measured, at midday facing away from the sun:
+		      * shipped shader and picked by eye. Each step varied these
+		      * two, the mix below them, AND the dark endpoint of the
+		      * colour ramp -- which is why these figures do not appear
+		      * until the colour block further down lands as well. Measured
+		      * at midday facing away from the sun:
 		      *
 		      *   C1  sep 11.2  relief 24.7  darkest interior pixel 192
 		      *   C2  sep 15.4  relief 38.8  darkest interior pixel 172
@@ -770,23 +773,51 @@ public abstract class SkyLib {
 		     "sk_lv *= mix(0.10, 1.00, sk_dir);\n" +
 		     "float sk_L = clamp(sk_lit * 0.15 + sk_lv * 0.85, 0.0, 1.0);\n" +
 		     "float sk_day = clamp($4 * 3.0 + 0.35, 0.05, 1.0);\n" +
-		     /* Both ends are further out than sky_clouds'. sky_tone is
-		      * Reinhard with a white point of 0.72, and at 2.20 a lit
-		      * cloud landed within ten levels of the sky under it --
-		      * darker than it, in fact, at the elevations this camera
-		      * shows: 0.739 against 0.881.
+		     /* The hue comes from sk_hue and not from the endpoints, and
+		      * that is the whole of this change.
 		      *
-		      * The dark end barely matters and it is worth knowing why.
-		      * sk_lv bottoms at 0.55 * 0.32 = 0.176, and sk_lit only
-		      * adds, so sk_L cannot go below about 0.15 -- this endpoint
-		      * is never reached, only approached to a seventh. Measured
-		      * against sky_clouds' darker 0.30, 0.32, 0.40 it moves the
-		      * shaded side of a cloud by one level of 255 and the thin
-		      * boundary by less than half of one, at midday and at dusk
-		      * alike. It is set here to keep the pair a shading range
-		      * rather than a brightness jump, not because the value is
-		      * doing measurable work. */
-		     "vec3 sk_cc = mix(vec3(0.45, 0.48, 0.62), vec3(5.00, 4.90, 4.70), sk_L) * sk_day;\n" +
+		      * Three tinted variants were built with the tint weighted by
+		      * (1 - sk_L) and all three were rejected on look. Probing
+		      * sk_L out of the emitted shader says why: the cloud interior
+		      * lives at 0.09 to 0.78 with a MEDIAN OF 0.33, so that weight
+		      * is 0.67 on the median pixel. None of them was a shadow
+		      * tint; all three tinted the whole cloud, and the blue one
+		      * traded a rain sheet for a cold front.
+		      *
+		      * So the hue is confined by a smoothstep placed on that
+		      * measured distribution: full blue below the interior's 5th
+		      * percentile, gone before its median. The body stays white,
+		      * and blue then reads as "lit by the sky" rather than as
+		      * weather. Anyone who changes the shading above moves this
+		      * distribution and must re-measure it and re-place all four
+		      * of these numbers -- same rule ADR-0008 sets for the noise
+		      * thresholds, and for the same reason.
+		      *
+		      * The warm note is the sunshine cue. It rides sk_dir, the one
+		      * term that knows where the sun is, and is switched off both
+		      * in the deep shadow (sk_hs) and at the white top (the second
+		      * smoothstep), so it appears only on the turn of a lobe
+		      * toward the sun. Hue CONTRAST, warm against blue, is what no
+		      * all-cool variant could produce.
+		      *
+		      * sk_Lc lifts the mid-tones only -- sk_L * (1 - sk_L) peaks
+		      * at 0.5 and vanishes at both ends -- so the mass sits at the
+		      * sky's own level without the deep shadow moving. Measured as
+		      * the signed median, cloud minus sky, at midday facing away:
+		      * shipped +3.0, this shading without the lift -3.3, with it
+		      * -1.3.
+		      *
+		      * sk_Lc cannot exceed 1.0: its derivative 1 + 0.45(1 - 2L) is
+		      * positive throughout, so it is monotone and reaches its
+		      * maximum at sk_L = 1, where the lift term is zero. The
+		      * ceiling is therefore 4.91, just under the 5.00 it replaces,
+		      * and the headroom warning above still holds. */
+		     "float sk_hs = smoothstep(0.08, 0.40, sk_L);\n" +
+		     "vec3 sk_hue = mix(vec3(0.68, 0.96, 1.50), vec3(1.0), sk_hs);\n" +
+		     "sk_hue *= mix(vec3(1.0), vec3(1.10, 1.00, 0.87),\n" +
+		     "              sk_dir * sk_hs * (1.0 - smoothstep(0.55, 0.95, sk_L)));\n" +
+		     "float sk_Lc = sk_L + 0.45 * sk_L * (1.0 - sk_L) * sk_hs;\n" +
+		     "vec3 sk_cc = mix(0.11, 4.91, sk_Lc) * sk_hue * sk_day;\n" +
 		     /* No rim term here. One was tried -- a pow(dot(fake normal,
 		      * sun), 6.0) forward-scatter highlight on the thin edges --
 		      * and measured on the target integrated GPU it cost 0.13 ms
