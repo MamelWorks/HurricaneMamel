@@ -176,9 +176,16 @@ public class SkyPalette extends State {
      * lightang is measured in.
      *
      * lightang sweeps a full turn per game day and crosses zero near dt 0.25,
-     * which is sunrise. Fitting that model and checking it away from the
-     * crossing -- at dt 0.808 it predicts 2.789 rad against 2.777 measured --
-     * leaves a small offset at the crossing itself, and this is it.
+     * which is sunrise. An earlier draft carried 0.012 here, read off the fit
+     * at the crossing. It does not survive its own cross-check: at dt 0.808 the
+     * model predicts 2.789 rad against 2.777 measured, and that residual is
+     * 0.012 -- the constant itself. Zero fits the check to 1e-4. So the fit
+     * found no offset it can resolve, and the honest value is zero.
+     *
+     * It stays a named constant at zero rather than being folded away, because
+     * what it asserts is not arithmetic: it says every world rises the sun in
+     * the +x direction. That assertion should be visible to whoever finds a
+     * world where it is false.
      *
      * Only SkyLib.morning reads it, to tell the morning half of the day from
      * the evening half. The sun vector itself still takes its azimuth from
@@ -188,7 +195,7 @@ public class SkyPalette extends State {
      * If a world rises the sun somewhere else, the morning widening lands on
      * that world's evening instead. That is the hypothesis ADR-0016 puts up to
      * be falsified; the failure is ugly, not broken. */
-    public static final double EAST_AZ = 0.012;
+    public static final double EAST_AZ = 0.0;
 
     /* What the compression above costs everything downstream.
      *
