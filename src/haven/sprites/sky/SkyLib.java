@@ -640,9 +640,20 @@ public abstract class SkyLib {
      * the same field, displaced toward the sun. Where density rises toward the
      * sun, the point is behind cloud and is shaded. That is the only term in
      * either cloud function whose shading follows the sun, and it is what makes
-     * a cloud read as a mass rather than as a patch -- measured on the opaque
-     * interior, the same pixel varies 0.0143 across four sun azimuths against
-     * 0.0032 for a thickness-only version of the same shader.
+     * a cloud read as a mass rather than as a patch. Measured on the opaque
+     * interior over six fixed views at mid sun, against the shader this
+     * replaces: median spread 16 levels of 255 against 9 facing away from the
+     * sun, and 13 against 6 facing it, with the worst view going from 1 level
+     * to 10. The floor is the point -- a cloud spanning one level of 255 has
+     * no internal pattern at all.
+     *
+     * Do NOT reach for a sun-azimuth variance statistic to prove this. Three
+     * formulations were tried and none separates a cloud having a shaded side
+     * that moves from the sky being brighter on one side, because sk_lit reads
+     * d.x and d.z and draws a sky-wide gradient that survives both a mean
+     * subtraction and a cloud-scale high-pass. On the rawest of the three this
+     * function scores 0.0099 and the flat card it replaces scores 0.0366.
+     * ADR-0013 records all three attempts.
      *
      * The second sample is taken over the first CLOUD_SUN_OCT octaves only; see
      * that constant for why, and for what it costs.
