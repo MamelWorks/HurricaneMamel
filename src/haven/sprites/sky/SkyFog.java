@@ -85,7 +85,13 @@ public class SkyFog extends State {
 		    Expression r = SkyPalette.u_maprect.ref();
 		    Expression ins = min(sub(p, pick(r, "xy")), sub(pick(r, "zw"), p));
 		    Expression edge = min(pick(ins, "x"), pick(ins, "y"));
-		    Expression f = mul(sub(l(1.0), smoothstep(l(0.0), l(BAND), edge)),
+		    /* BAND is the full-strength width; the uniform is the
+		     * fraction of it the player asked for. Multiplying here
+		     * rather than sending a width in units keeps this constant
+		     * and the paragraph above it as the one place the number
+		     * 70 is decided. */
+		    Expression band = mul(l(BAND), SkyPalette.u_fogband.ref());
+		    Expression f = mul(sub(l(1.0), smoothstep(l(0.0), band, edge)),
 				       SkyPalette.u_fogstr.ref());
 		    Expression col = hor.call(SkyPalette.viewdir(prog.fctx),
 					      SkyPalette.u_sundir.ref(),
