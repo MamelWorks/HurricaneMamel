@@ -18,8 +18,8 @@ import haven.sprites.sky.SkyTime;
  * could be a lie is not evidence, and a visible window is the cheapest way to
  * keep the two kinds of picture apart. */
 public class SkyTimeWnd extends Window {
-    private static final String[] SPEEDS = {"15 s", "30 s", "60 s", "2 min"};
-    private static final double[] SECS = {15.0, 30.0, 60.0, 120.0};
+    private static final String[] SPEEDS = {"15 s", "30 s", "60 s", "2 min", "5 min"};
+    private static final double[] SECS = {15.0, 30.0, 60.0, 120.0, 300.0};
 
     private static SkyTimeWnd cur = null;
 
