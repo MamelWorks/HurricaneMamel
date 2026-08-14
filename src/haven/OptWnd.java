@@ -4218,6 +4218,11 @@ public class OptWnd extends Window {
 				}
 			}, rightColumn.pos("ur").adds(4, 0)).tooltip = skyboxStyleTooltip;
 
+			rightColumn = add(new Button(UI.scale(120), "Sky Time...", false).action(() -> {
+				if (ui != null && ui.gui != null)
+					SkyTimeWnd.toggle(ui.gui);
+			}), rightColumn.pos("bl").adds(0, 4));
+
 			rightColumn = add(new Label("Trees & Bushes Scale:"), rightColumn.pos("bl").adds(0, 14).xs(290));
 			rightColumn = add(treeAndBushScaleSlider = new HSlider(UI.scale(200), 30, 100, Utils.getprefi("treeAndBushScale", 100)) {
 				protected void attach(UI ui) {
