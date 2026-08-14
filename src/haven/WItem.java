@@ -199,7 +199,8 @@ public class WItem extends Widget implements DTarget {
 	    g.defstate();
 	    if(rstate.get() != null)
 		g.usestate(rstate.get());
-		String searchKeyword = InventorySearchWindow.inventorySearchString;
+		String itemName = item.getname().toLowerCase();
+		String searchKeyword = InventorySearchWindow.inventorySearchString.toLowerCase();
 		if (searchKeyword.length() > 1) {
 			if (Fuzzy.fuzzyContains(itemName, searchKeyword)) {
 				int fps = UILoop.fps > 0 ? UILoop.fps : 1;

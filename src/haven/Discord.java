@@ -97,7 +97,7 @@ public class Discord {
 	private static Discord instance = null;
 
 	public static synchronized Discord get() {
-		if (MainFrame.runningThroughDiscord) {
+		if (Boolean.parseBoolean(System.getProperty("runningThroughDiscord", "true"))) {
 			if (instance == null) {
 				try {
 					instance = new Discord();
