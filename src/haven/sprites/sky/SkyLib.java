@@ -324,10 +324,30 @@ public abstract class SkyLib {
     /* Reinhard + gamma. Both modes MUST pass through this and only this, so
      * they stay in one colour space. It had a second reason to be shared --
      * the horizon fog fading the map edge into the sky, which drifted visibly
-     * if it tonemapped separately -- and that consumer is gone. */
+     * if it tonemapped separately -- and that consumer is gone.
+     *
+     * Reinhard runs on the LUMINANCE and the chroma ratios are carried through
+     * it, rather than each channel being compressed on its own. Per channel it
+     * is the brightest channel that gets compressed hardest, so a compression
+     * is also a desaturation: with the white point at 0.72 and this model
+     * arriving above it, the daylight band came out at a saturation of 0.05 to
+     * 0.11 -- the grey ADR-0021 is about. On the luminance the ratios survive
+     * the compression, and the same band reads 0.12 to 0.27.
+     *
+     * min() against white is the gamut clamp, and it is where the hue can
+     * still shift: a ratio scaled to a luminance the cube cannot hold has to
+     * lose the channel that leaves first. That only bites on the sun disc and
+     * the brightest cloud tops, which are white already.
+     *
+     * This is shared, so it repaints every hour and not only the day, which is
+     * the cost ADR-0021 weighs: it is what moves the two twilights by 22
+     * levels of 255 and the night by 7, and what took dawn_check's HOLD family
+     * off ADR-0016's baseline and onto this one. */
     public static final Function tone = new Function.Def(VEC3, "sky_tone") {{
 	Expression c = param(IN, VEC3).ref();
-	code.add(raw("vec3 sk_c = $0 / ($0 + vec3(0.72));\n" +
+	code.add(raw("float sk_L = dot($0, vec3(0.2126, 0.7152, 0.0722));\n" +
+		     "float sk_T = sk_L / (sk_L + 0.72);\n" +
+		     "vec3 sk_c = min($0 * (sk_T / max(sk_L, 1.0e-5)), vec3(1.0));\n" +
 		     "return pow(sk_c, vec3(1.0 / 2.2));\n", c));
     }};
 
@@ -692,7 +712,24 @@ public abstract class SkyLib {
 		     "float sk_ray = 3.0 / (8.0 * 3.14159) * (1.0 + sk_mu * sk_mu);\n" +
 		     "vec3 sk_mie = (sk_Kr + sk_Km * (1.0 - sk_g * sk_g) / (2.0 + sk_g * sk_g)\n" +
 		     "               / pow(1.0 + sk_g * sk_g - 2.0 * sk_g * sk_mu, 1.5)) / (sk_Br + sk_Bm);\n" +
-		     "vec3 sk_day = exp(-exp(-((sk_pos.y + $1.y * 4.0) * (exp(-sk_pos.y * 16.0) + 0.1) / 80.0) / sk_Br)\n" +
+		     /* The extinction's sun-height factor is a physical falloff
+		      * on the sun, so by ADR-0010 it must not read the
+		      * compressed sine: $1.y tops out at sin(PEAK) = 0.46, so
+		      * this term treated 16:24 -- the sun 27 real degrees up --
+		      * as an 11-degree sun and applied near-sunset extinction
+		      * to the whole afternoon. Crossed with sk_Kr's blue
+		      * weighting that lands the visible band on green; the
+		      * old over-exposure tonemapped it to white, and DAY_EXPO
+		      * (ADR-0020) uncovered it. sin($2) is the same quantity
+		      * decompressed.
+		      *
+		      * Above the horizon only. Both branches are 0 at sh = 0,
+		      * so sunrise and sunset themselves do not move, and every
+		      * sh <= 0 case -- both twilights and the night, where
+		      * this term still has blend weight until NIGHT_EDGE -- is
+		      * bit-identical by construction, which is what keeps
+		      * dawn_check's HOLD family at 0.000e+00. */
+		     "vec3 sk_day = exp(-exp(-((sk_pos.y + (($2 > 0.0) ? sin($2) : $1.y) * 4.0) * (exp(-sk_pos.y * 16.0) + 0.1) / 80.0) / sk_Br)\n" +
 		     "              * (exp(-sk_pos.y * 16.0) + 0.1) * sk_Kr / sk_Br)\n" +
 		     "              * exp(-sk_pos.y * exp(-sk_pos.y * 8.0) * 4.0) * exp(-sk_pos.y * 2.0) * 4.0;\n" +
 		     /* Night is a colour, not a grey. The neutral term this
