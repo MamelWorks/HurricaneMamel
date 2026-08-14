@@ -585,7 +585,16 @@ public abstract class SkyLib {
      * from 07:00 to 17:00 the whole daylight arc spans 8.7 levels of 255:
      * 08:45, noon and 15:00 are within three levels of each other, because
      * above the knee a difference in radiance is not a difference on screen.
-     * At 0.25 that arc is 33.1 levels. That is what the number buys.
+     * At 0.25 that arc is 29.9 levels.
+     *
+     * Both of those are the 180-degree bearing, and neither is the whole
+     * picture -- see DAY_EXPO_UP for why one bearing is not a measurement here.
+     * Swept over eight, the arc runs 7.8 to 17.1 before and 12.3 to 39.4 after.
+     * Every bearing gains and the worst one is still nearly flat, which this
+     * constant cannot fix: the gate multiplies sk_day, so it scales whatever
+     * elevation response a bearing already has, and where competing terms
+     * cancel there is nothing to scale. dawn_check's DAY family therefore
+     * asserts that no bearing loses arc and prints the floor it does not reach.
      *
      * Two candidate justifications were measured and both failed, and they are
      * recorded so they are not proposed again. Matching mode A's reading is
@@ -606,16 +615,45 @@ public abstract class SkyLib {
      * against dawn_check's floor of 0.220 and moves 06:00 by 48 levels where
      * the contract is bit-identity.
      *
-     * 0.5 radians of real elevation is reached at 07:40, and by symmetry at
-     * 16:20, so the gate is fully open across the hours anyone plays and
-     * closed across the hours anyone tuned.
+     * DAY_EXPO_UP is 0.25 and was 0.5, and the correction is worth recording
+     * because of HOW the first value survived review. Everything that chose it
+     * was measured at 08:45 and at one camera bearing, 180 degrees off the sun
+     * -- which ADR-0016 already names as the FLATTERING bearing, in this same
+     * file's neighbourhood. Swept over nine hours and eight bearings instead,
+     * 08:45 reads 0.64 there and 1.04 to 1.30 at four other bearings, so the
+     * worst case was double what was judged.
+     *
+     * The same sweep found the real defect in 0.5: it moved the peak rather
+     * than removing it. Before, the worst cell was noon at 2.91; at 0.5 it
+     * became 17:00 at 1.67, because a gate that must equal 1.0 at the horizon
+     * gives the shoulder hours almost nothing -- 17:00 got 0.54, not 0.25, and
+     * came out at a saturation of 0.051, worse than the 0.073 that started the
+     * complaint. Nothing regressed, every cell improved, but the correction was
+     * uneven enough to leave a new worst hour nobody had looked at.
+     *
+     * 0.25 is a strict improvement over 0.5, which is why it needs no taste
+     * argument: 08:45 and 12:00 come out bit-identical, and the shoulders gain
+     * -- 17:00 to 0.063, 07:00 from 0.062 to 0.082. Across the grid the worst
+     * cell falls 1.67 to 1.54 and the share still past the knee 93% to 82%.
+     *
+     * The obvious objection is that a faster ramp becomes a visible transition,
+     * and it is empirically false. Stepped every ten game minutes across
+     * sunrise, the sky's own natural motion is 22.8 levels of 255 per step,
+     * while this gate's largest step is 16.9 at 0.25 and 14.2 even at 0.18. The
+     * gate cannot produce a change the sunrise is not already making.
+     *
+     * 0.25 radians of real elevation is reached at 06:52 and by symmetry at
+     * 17:08, so the gate is fully open across the hours anyone plays, tapers
+     * only in the forty minutes at each end, and is shut across the hours
+     * anyone tuned. 0.18 was measured too and buys nothing further: the worst
+     * cell does not move at all.
      *
      * One thing the sweep turned up and this does not explain: the daylight
      * arc is not shaped like a day. Its darkest point is 08:45 and its
      * brightest 17:00, with noon between them. Whatever that is, it is not
      * this constant -- the ordering is the same before and after. */
     public static final double DAY_EXPO = 0.25;
-    public static final double DAY_EXPO_UP = 0.5;   /* rad of real elevation */
+    public static final double DAY_EXPO_UP = 0.25;  /* rad of real elevation */
 
     /* --- Mode B: Rayleigh + Mie (Y-up, no sun disc) ------------------- */
 
