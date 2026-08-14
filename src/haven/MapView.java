@@ -1306,7 +1306,16 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
     private void amblight() {
 	synchronized(glob) {
 	    if(glob.lightamb != null) {
-		amblight = new DirLight(glob.blightamb, glob.blightdif, glob.blightspc, Coord3f.o.sadd((float)glob.lightelev, (float)glob.lightang, 1f));
+		/* The sky debug clock moves the bearing, so the shadows keep
+		 * pointing away from the drawn sun at a fake hour. The elevation
+		 * and the three colours stay where the server put them, because
+		 * neither can be derived: ~/skyprobe.log has no lightelev sample
+		 * between 09:00 and 18:00, and the colours only ever arrive in
+		 * the light message. So a fake midnight leaves the ground lit for
+		 * the real hour, and SkyTimeWnd says so. See ADR-0022. */
+		Double fake = SkyTime.fake();
+		double lang = (fake != null) ? SkyTime.ang(fake) : glob.lightang;
+		amblight = new DirLight(glob.blightamb, glob.blightdif, glob.blightspc, Coord3f.o.sadd((float)glob.lightelev, (float)lang, 1f));
 		amblight.prio(100);
 	    } else {
 		amblight = null;
