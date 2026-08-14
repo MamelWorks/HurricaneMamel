@@ -45,6 +45,20 @@ public class SkyPalette extends State {
 	    ang = glob.lightang;
 	    ast = glob.ast;
 	}
+	/* The sky debug clock, when a player has one open. It replaces BOTH
+	 * halves of the vector: an elevation without its bearing would put a
+	 * dusk sun in the morning sky, and SkyLib.morning gates on the bearing.
+	 * MapView.amblight takes the same bearing, so the drawn sun and the
+	 * shadows stay agreed at a fake hour exactly as they do at a real one.
+	 *
+	 * It sits above the !lit check on purpose: a player who opens the window
+	 * before the server's first light blob should still get a sky, and this
+	 * way everything below is untouched, so the live path is the same code
+	 * it was. See ADR-0022. */
+	Double fake = SkyTime.fake();
+	if(fake != null)
+	    return(new SkyPalette(Coord3f.o.sadd((float)sunelev(fake), (float)SkyTime.ang(fake), 1f),
+				  Glob.nightVisionBrightness * NIGHT_SHARE));
 	if(!lit)
 	    return(new SkyPalette(new Coord3f(0f, 0f, 1f), 0.0));
 	/* The azimuth still comes from the server's light, so the drawn sun and
