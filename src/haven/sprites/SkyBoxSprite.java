@@ -13,40 +13,49 @@ import static haven.render.sl.Cons.*;
 
 public class SkyBoxSprite extends Sprite {
 
-	/* Loaded on first use, not during class initialisation. A missing or
-	 * corrupt galaxy.res used to fail this whole class with
-	 * ExceptionInInitializerError, taking the procedural sky -- which
-	 * needs no texture at all -- down with it. */
-	private static TextureCube.SamplerCube galaxy = null;
-	private static boolean galaxyfailed = false;
-
-	/* Blocking: RUtils.CubeFill.mktex does a Loading.waitfor
-	 * (RUtils.java:201). Never call this from a Uniform value lambda,
-	 * which runs on the render thread every frame and would both stall it
-	 * and contend on this monitor.
+	/* One of the two texture skies. Loaded on first use, not during class
+	 * initialisation: a missing or corrupt .res used to fail this whole
+	 * class with ExceptionInInitializerError, taking the procedural sky --
+	 * which needs no texture at all -- down with it.
+	 *
+	 * get() blocks: RUtils.CubeFill.mktex does a Loading.waitfor
+	 * (RUtils.java:201). Never call it from a Uniform value lambda, which
+	 * runs on the render thread every frame and would both stall it and
+	 * contend on this monitor.
 	 *
 	 * Its one caller, SkyboxShader.current(), runs from Sprite.added,
 	 * which is reached on a Loader-pool thread: Gob.addol(ol) delegates to
 	 * addol(ol, true), which defers the actual add0() (Gob.java:740-745).
-	 * Blocking there is what those threads are for, and galaxy() is
+	 * Blocking there is what those threads are for, and get() is
 	 * synchronized, so a concurrent second load waits rather than building
 	 * the texture twice. */
-	public static synchronized TextureCube.SamplerCube galaxy() {
-		if(galaxyfailed)
-			return(null);
-		if(galaxy == null) {
-			try {
-				galaxy = new TextureCube.SamplerCube(new RUtils.CubeFill(() -> Resource.local().loadwait("customclient/skybox/galaxy").layer(Resource.imgc).img).mktex());
-				/* ND: The wrapmode fixes the texture edges being off
-				 * by 1 pixel. Keep it. */
-				galaxy.wrapmode(Texture.Wrapping.CLAMP);
-			} catch(RuntimeException e) {
-				galaxyfailed = true;
+	private static class Cubemap {
+		private final String res;
+		private TextureCube.SamplerCube tex = null;
+		private boolean failed = false;
+
+		private Cubemap(String res) {this.res = res;}
+
+		private synchronized TextureCube.SamplerCube get() {
+			if(failed)
 				return(null);
+			if(tex == null) {
+				try {
+					tex = new TextureCube.SamplerCube(new RUtils.CubeFill(() -> Resource.local().loadwait(res).layer(Resource.imgc).img).mktex());
+					/* ND: The wrapmode fixes the texture edges being off
+					 * by 1 pixel. Keep it. */
+					tex.wrapmode(Texture.Wrapping.CLAMP);
+				} catch(RuntimeException e) {
+					failed = true;
+					return(null);
+				}
 			}
+			return(tex);
 		}
-		return(galaxy);
 	}
+
+	private static final Cubemap galaxy = new Cubemap("customclient/skybox/galaxy");
+	private static final Cubemap clouds = new Cubemap("customclient/skybox/clouds");
 	static final Pipe.Op smat;
 	VertexBuf.VertexData posa;
 	VertexBuf vbuf;
@@ -168,22 +177,30 @@ public class SkyBoxSprite extends Sprite {
 		public static final SkyboxShader sky_a = new SkyboxShader(Mode.SKY_A, null);
 		public static final SkyboxShader sky_b = new SkyboxShader(Mode.SKY_B, null);
 
-		public enum Mode {SKY_A, SKY_B, GALAXY}
+		public enum Mode {SKY_A, SKY_B, GALAXY, CLOUDS}
 
-		/* Picks a variant from the cached preferences. Galaxy degrades to
-		 * the procedural sky when its resource is unavailable.
+		/* Picks a variant from the cached preference.
 		 *
 		 * Called from Sprite.added, i.e. a Loader-pool thread -- which
-		 * is where the blocking galaxy() load belongs. The resolved
+		 * is where the blocking cubemap load belongs. The resolved
 		 * sampler is stored on the returned state, so the uniform never
 		 * has to load anything and never sees null. */
 		public static SkyboxShader current() {
-			if(SkyPalette.style == 1) {
-				TextureCube.SamplerCube tex = galaxy();
-				if(tex != null)
-					return(new SkyboxShader(Mode.GALAXY, tex));
+			switch(SkyPalette.style) {
+			case SkyPalette.REALISTIC: return(sky_b);
+			case SkyPalette.GALAXY:    return(cube(Mode.GALAXY, galaxy));
+			case SkyPalette.CLOUDS:    return(cube(Mode.CLOUDS, clouds));
+			default:                   return(sky_a);
 			}
-			return(SkyPalette.hq ? sky_b : sky_a);
+		}
+
+		/* A texture sky whose resource will not load degrades to the simple
+		 * procedural one, which needs no resource at all. Falling through to
+		 * no sky would be worse: the cube is still drawn either way, so the
+		 * player would get an untextured box rather than a missing option. */
+		private static SkyboxShader cube(Mode mode, Cubemap map) {
+			TextureCube.SamplerCube tex = map.get();
+			return((tex == null) ? sky_a : new SkyboxShader(mode, tex));
 		}
 
 		public final Mode mode;
@@ -193,20 +210,25 @@ public class SkyBoxSprite extends Sprite {
 		private SkyboxShader(Mode mode, TextureCube.SamplerCube tex) {
 			this.mode = mode;
 			this.tex = tex;
-			this.shader = (mode == Mode.GALAXY) ? galaxymacro : skymacro(mode);
+			/* A carried texture is exactly what makes this a cubemap
+			 * variant, so it decides the macro. */
+			this.shader = (tex != null) ? cubemacro : skymacro(mode);
 		}
 
 		/* Reads the sampler off the state in the pipe -- no loading, no
 		 * lock, no null. */
 		private static final Uniform ssky = new Uniform(Type.SAMPLERCUBE, p -> p.get(surfslot).tex, surfslot);
 
-		/* One shared macro instance: shader programs are cached on macro
+		/* One shared macro instance, and one for BOTH cubemaps: the
+		 * sampler is read off the state in the pipe, so Galaxy and Clouds
+		 * differ only in which texture their state carries and need no
+		 * program of their own. Shader programs are cached on macro
 		 * identity, so a per-state macro would compile a fresh program
-		 * every time the galaxy state is rebuilt.
+		 * every time a cubemap state is rebuilt.
 		 *
 		 * The bare Homo3D.fragedir(prog.fctx) call is NOT redundant --
 		 * see the note below the code. */
-		private static final ShaderMacro galaxymacro = prog -> {
+		private static final ShaderMacro cubemacro = prog -> {
 			Homo3D.fragedir(prog.fctx);
 			FragColor.fragcol(prog.fctx).mod(
 				in -> mul(in, textureCube(ssky.ref(), SkyPalette.viewdir(prog.fctx))), 0);

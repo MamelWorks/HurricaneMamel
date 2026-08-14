@@ -149,16 +149,49 @@ public class SkyPalette extends State {
      * the night sky to flat grey and drowns the stars. */
     public static final double NIGHT_SHARE = 0.5;
 
+    /* The four skies the player can pick between, in the order the options
+     * window lists them.
+     *
+     * SIMPLE and REALISTIC are not a quality ladder, whatever the option used
+     * to be called. They are two different models -- SkyLib.baseA is an
+     * analytic gradient, baseB is Rayleigh + Mie scattering -- and with the
+     * horizon fog gone the difference between them is 0.35 ms of GPU time at
+     * 1080p on integrated graphics, about 2% of a frame at 60 fps. SIMPLE is
+     * the default because the client cannot detect a shader the driver will
+     * not run, not because it is cheaper. */
+    public static final int SIMPLE = 0, REALISTIC = 1, GALAXY = 2, CLOUDS = 3;
+
     /* Cached because SkyboxShader.current() would otherwise read
      * java.util.prefs on every sprite build. OptWnd calls reload() when the
-     * player changes either of them. volatile because OptWnd writes on the UI
-     * thread while the render tree reads during slot construction. */
-    public static volatile int style = Utils.getprefi("skyboxStyle", 0);
-    public static volatile boolean hq = Utils.getprefb("skyboxQuality", false);
+     * player changes it. volatile because OptWnd writes on the UI thread while
+     * the render tree reads during slot construction. */
+    public static volatile int style = loadstyle();
 
     public static void reload() {
-	style = Utils.getprefi("skyboxStyle", 0);
-	hq = Utils.getprefb("skyboxQuality", false);
+	style = loadstyle();
+    }
+
+    /* One pref, four values -- but the two it replaces have to be honoured
+     * once, or every player who was on the procedural sky wakes up on the
+     * Clouds cubemap. The old pair was skyboxStyle (0 = the procedural sky,
+     * 1 = Galaxy) beside a separate skyboxQuality boolean that only meant
+     * anything when skyboxStyle was 0.
+     *
+     * Reusing skyboxStyle for the new range is what would cause that: its 0
+     * and the new SIMPLE happen to agree, but its 1 is Galaxy where the new 1
+     * is REALISTIC. Hence a new key, and -1 rather than a default as the
+     * "never written" marker, since 0 is a real value.
+     *
+     * The old keys are left where they are. They cost nothing, and a player
+     * who rolls back to an earlier build finds the settings they had. */
+    private static int loadstyle() {
+	int v = Utils.getprefi("skyboxSky", -1);
+	if(v >= 0)
+	    return(v);
+	int n = (Utils.getprefi("skyboxStyle", 0) == 1) ? GALAXY :
+	    (Utils.getprefb("skyboxQuality", false) ? REALISTIC : SIMPLE);
+	Utils.setprefi("skyboxSky", n);
+	return(n);
     }
 
     public static final Uniform u_sundir = new Uniform(VEC3, "skysun", p -> {

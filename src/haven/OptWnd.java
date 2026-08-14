@@ -4187,10 +4187,12 @@ public class OptWnd extends Window {
 			enableSkyboxCheckBox.tooltip = enableSkyboxTooltip;
 
 			rightColumn = add(new Label("Skybox Style:"), rightColumn.pos("bl").adds(0, 4));
-			List<String> skyboxStyles = Arrays.asList("Sky", "Galaxy");
+			/* Order must match SkyPalette's SIMPLE/REALISTIC/GALAXY/CLOUDS,
+			 * which are what the stored index means. */
+			List<String> skyboxStyles = Arrays.asList("Simple Sky", "Realistic Sky", "Galaxy", "Clouds");
 			add(new OldDropBox<String>(skyboxStyles.size(), skyboxStyles) {
 				{
-					super.change(skyboxStyles.get(Utils.getprefi("skyboxStyle", 0)));
+					super.change(skyboxStyles.get(Utils.clip(SkyPalette.style, 0, skyboxStyles.size() - 1)));
 				}
 				@Override
 				protected String listitem(int i) {
@@ -4209,21 +4211,12 @@ public class OptWnd extends Window {
 					super.change(item);
 					for (int i = 0; i < skyboxStyles.size(); i++){
 						if (item.equals(skyboxStyles.get(i))){
-							Utils.setprefi("skyboxStyle", i);
+							Utils.setprefi("skyboxSky", i);
 							OptWnd.this.reloadSkybox();
 						}
 					}
 				}
-			}, rightColumn.pos("ur").adds(4, 0));
-
-			rightColumn = add(new CheckBox("High Quality Sky"){
-				{a = (Utils.getprefb("skyboxQuality", false));}
-				public void changed(boolean val) {
-					Utils.setprefb("skyboxQuality", val);
-					OptWnd.this.reloadSkybox();
-				}
-			}, rightColumn.pos("bl").adds(0, 4));
-			rightColumn.tooltip = skyboxQualityTooltip;
+			}, rightColumn.pos("ur").adds(4, 0)).tooltip = skyboxStyleTooltip;
 
 			rightColumn = add(new Label("Trees & Bushes Scale:"), rightColumn.pos("bl").adds(0, 14).xs(290));
 			rightColumn = add(treeAndBushScaleSlider = new HSlider(UI.scale(200), 30, 100, Utils.getprefi("treeAndBushScale", 100)) {
@@ -5589,11 +5582,17 @@ public class OptWnd extends Window {
 	private static final Object enableSkyboxTooltip = RichText.render("Adds a skybox to the game world." +
 			"\n" +
 			"\n$col[185,185,185]{Summon the sky above the hearthlands, and banish the endless void!}", UI.scale(190));
-	private static final Object skyboxQualityTooltip = RichText.render("Uses a physically based scattering model for the sky, and a wider, softer haze band where the world ends." +
+	private static final Object skyboxStyleTooltip = RichText.render("Which sky the skybox draws." +
 			"\n" +
-			"\n$col[185,185,185]{Costs more GPU time than the plain gradient.}" +
+			"\n$col[185,185,185]{Simple Sky} draws the sky from an analytic gradient. "+
+			"$col[185,185,185]{Realistic Sky} computes it from atmospheric scattering, so the horizon, the dawn and the sun's halo follow the time of day more closely. "+
+			"$col[185,185,185]{Galaxy} and $col[185,185,185]{Clouds} are painted textures rather than computed skies." +
 			"\n" +
-			"\n$col[218,163,32]{Off by default because the client cannot detect an unsupported shader on its own. If the sky renders black, or the client fails to draw with this on, turn it back off.}", UI.scale(300));
+			"\n$col[185,185,185]{These are four different skies, not four quality levels. Realistic Sky costs about 0.35 ms of GPU time more than Simple Sky -- roughly 2% of a frame at 60fps -- so pick whichever you like the look of.}" +
+			"\n" +
+			"\n$col[218,163,32]{Simple Sky is the default because the client cannot detect a shader your driver will not run. If the sky renders black, or the client fails to draw, come back here and pick Simple Sky.}" +
+			"\n" +
+			"\n$col[185,185,185]{Changing this recompiles the sky's shader, so expect a brief stutter.}", UI.scale(300));
 	private static final Object disableTreeAndBushSwayingTooltip = RichText.render("Trees and bushes will no longer move as if the wind is blowing them around." +
 			"\n" +
 			"\n$col[185,185,185]{Disabling swaying can improve your framerate.}", UI.scale(300));
