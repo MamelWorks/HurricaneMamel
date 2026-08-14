@@ -4,110 +4,38 @@ import haven.*;
 import haven.render.*;
 import haven.render.sl.*;
 import static haven.render.sl.Type.*;
-import static haven.MCache.tilesz;
 
 /* Game state -> sky uniforms. No GLSL maths lives here; SkyLib owns that.
  *
  * MapView pushes one of these per tick via basic(SkyPalette.class, ...).
- * equals() lets PView.basic skip rebuilding its ostate when nothing moved.
- * That helps while the player stands still -- Glob.ticklight
- * (Glob.java:164-183) only interpolates the light during a two-second
- * window after each server update -- but not while walking, since the
- * player position is part of the state. That is acceptable: updweather()
- * already rebuilds unconditionally every tick (MapView.java:1386-1390
- * composes a fresh Pipe.Op[], which is never equal), so this is no worse
- * than what the frame already does. */
+ * equals() lets PView.basic skip rebuilding its ostate when nothing moved,
+ * and since the horizon fog went there is nothing here that moves with the
+ * player -- only the sun and the night lift, which Glob.ticklight
+ * (Glob.java:164-183) interpolates during a two-second window after each
+ * server update. Walking now costs nothing at all here. */
 public class SkyPalette extends State {
     public static final Slot<SkyPalette> slot = new Slot<>(Slot.Type.DRAW, SkyPalette.class);
 
     /* World-space (Z-up), normalised, pointing at the sun. */
     public final float sx, sy, sz;
-    /* The loaded map rectangle in RENDER space: {minx, miny, maxx, maxy}.
-     * SkyFog measures how close a fragment is to the nearest edge of THIS,
-     * not how far it is from the player.
-     *
-     * That distinction is the whole point. The cut grid is aligned to the
-     * world, not to the player, so the map edge sits anywhere from 550 to
-     * 825 units away depending on where inside their centre cut the player
-     * happens to stand. Fogging on distance-from-player therefore has to be
-     * opaque by 550 to cover the worst case -- which erases roughly 60% of
-     * the terrain the client already loaded and drew. Measuring to the edge
-     * itself fogs a band of constant width wherever the player stands.
-     *
-     * Render space is map space with y negated; see from(). */
-    public final float rx0, ry0, rx1, ry1;
     /* Night Mode lift already halved -- see Glob.nightVisionBrightness. */
     public final float night;
-    /* Fog strength, 0 when the sky is not visible and otherwise the player's
-     * setting. Gating this rather than attaching and detaching SkyFog is what
-     * keeps cave transitions from recompiling every shader in the scene. */
-    public final float fog;
-    /* Fraction of SkyFog.BAND the fade band should span, the player's other
-     * setting. A fraction rather than a width in units, so BAND and the
-     * paragraph justifying 70 stay in SkyFog and this class keeps knowing
-     * nothing about it.
-     *
-     * Never zero. It is a smoothstep edge, and smoothstep(0, 0, x) is
-     * undefined in GLSL -- free to return NaN, which would survive the
-     * multiply by fog even when fog is 0 and reach the frame buffer. The floor
-     * is 1e-4, which is 0.007 of a unit: no fog, by any measure the eye has. */
-    public final float band;
-
-    public SkyPalette(Coord3f sundir, float[] rect, double night, boolean fog) {
+    public SkyPalette(Coord3f sundir, double night) {
 	Coord3f n = sundir.norm();
 	this.sx = n.x; this.sy = n.y; this.sz = n.z;
-	this.rx0 = rect[0]; this.ry0 = rect[1]; this.rx1 = rect[2]; this.ry1 = rect[3];
 	this.night = (float)night;
-	/* Width at 0 turns the fog off rather than narrowing it to nothing.
-	 * Outside the loaded rectangle the fragment's distance to the edge is
-	 * negative, smoothstep returns 0 for any positive band, and the fog
-	 * comes out at full strength however narrow the band is. That is
-	 * invisible today because the 70-unit band arrives opaque at the
-	 * boundary and the outside continues it -- but with the band at
-	 * nothing it would leave everything inside clear and everything
-	 * outside still fully painted. Gobs are drawn out there: MapView.Gobs
-	 * culls on screen position, not on this rectangle. */
-	this.fog = (fog && (fogband > 0)) ? (fogstr / 100f) : 0f;
-	this.band = Math.max(fogband / 100f, 1e-4f);
     }
 
-    /* The loaded cut rectangle, in render space. MapRaster.tick
-     * (MapView.java:971-973) computes the same thing for its own use, but it
-     * is a field on a private inner class, so this recomputes rather than
-     * reaching into it. One cut is MCache.cutsz * MCache.tilesz = 275 units.
+    /* The sun as the world lighting sees it. Identical expression to the one
+     * MapView builds for the shadow direction, so the drawn sun and the
+     * shadows agree.
      *
-     * Map y grows the opposite way from render y, so the negation also swaps
-     * which corner is the minimum -- hence the min/max rather than a
-     * straight copy. */
-    public static float[] maprect(Coord2d plpos, int view) {
-	Coord cc = plpos.floor(tilesz).div(MCache.cutsz);
-	Coord cs = MCache.cutsz.mul(Coord.of((int)tilesz.x, (int)tilesz.y));
-	Coord ul = cc.sub(view, view).mul(cs);
-	Coord br = cc.add(view + 1, view + 1).mul(cs);
-	return(new float[] {
-		Math.min(ul.x, br.x), Math.min(-ul.y, -br.y),
-		Math.max(ul.x, br.x), Math.max(-ul.y, -br.y),
-	    });
-    }
-
-    /* The sun as the world lighting sees it. Identical expression to
-     * MapView.java:1308, so the drawn sun and the shadows agree.
-     *
-     * plpos arrives from MapView.getcc() in MAP space. Homo3D.fragmapv,
-     * which SkyFog compares against, is in RENDER space -- which is map
-     * space with y negated. Every producer of u_wxf does that negation:
-     * Gob.java:1123-1125 (rc.y = -rc.y) for gobs, MapView.java:940
-     * (Location.xlate(pc.x, -pc.y, 0)) for terrain cuts, MapMesh.java:125
-     * for the vertices themselves. Six other call sites convert with
-     * getcc().invy() (MapView.java:196, 251, 307, 397, 486, 1257). Get this
-     * wrong and the fog origin lands at 2*|y| off -- and H&H map coordinates
-     * are hundreds of thousands of units, so the whole world saturates to
-     * flat horizon colour rather than looking subtly mirrored.
-     *
-     * Never returns null: before the server sends light data there is
-     * nothing to draw a sky from, but detaching the state would churn the
-     * shader set, so it reports fog = false and a default sun instead. */
-    public static SkyPalette from(Glob glob, float[] rect, boolean fog) {
+     * Never returns null: before the server sends light data there is nothing
+     * to draw a sky from, but the caller would then have to detach the state,
+     * so it reports a default sun straight up instead. Nothing reads a
+     * position any more -- the map rectangle went out with the horizon fog,
+     * and with it the last reason for any sky code to know about MapView. */
+    public static SkyPalette from(Glob glob) {
 	double elev, ang;
 	boolean lit;
 	Astronomy ast;
@@ -118,7 +46,7 @@ public class SkyPalette extends State {
 	    ast = glob.ast;
 	}
 	if(!lit)
-	    return(new SkyPalette(new Coord3f(0f, 0f, 1f), rect, 0.0, false));
+	    return(new SkyPalette(new Coord3f(0f, 0f, 1f), 0.0));
 	/* The azimuth still comes from the server's light, so the drawn sun and
 	 * the shadows keep agreeing. That half of the vector was never wrong:
 	 * aiming the camera down the shadows in game put the disc dead on that
@@ -130,8 +58,8 @@ public class SkyPalette extends State {
 	 * there is a window with light but no clock, and the old behaviour is a
 	 * better thing to show there than a sun pinned at dawn. */
 	double selev = (ast == null) ? elev : sunelev(ast.dt);
-	return(new SkyPalette(Coord3f.o.sadd((float)selev, (float)ang, 1f), rect,
-			      Glob.nightVisionBrightness * NIGHT_SHARE, fog));
+	return(new SkyPalette(Coord3f.o.sadd((float)selev, (float)ang, 1f),
+			      Glob.nightVisionBrightness * NIGHT_SHARE));
     }
 
     /* Day fraction -> the sun's elevation for DRAWING, in radians.
@@ -221,28 +149,16 @@ public class SkyPalette extends State {
      * the night sky to flat grey and drowns the stars. */
     public static final double NIGHT_SHARE = 0.5;
 
-    /* Cached because SkyFog.current(), SkyboxShader.current() and the palette
-     * constructor would otherwise read java.util.prefs on every tick. OptWnd
-     * calls reload() when the user changes any of them. volatile because
-     * OptWnd writes on the UI thread while the render tree reads during slot
-     * construction -- the same unsynchronised-static defect this work removes
-     * from OptWnd.skyboxFuture.
-     *
-     * The two fog settings are percentages, 0 to 100, and 100 is the picture
-     * this sky was designed and measured on: 100 makes the shader compute
-     * 70.0 * 1.0 where it used to have the literal 70.0, and 1.0 * 1.0 where
-     * the fog gate used to be a bare 1.0. Both are exact in IEEE, so the
-     * default is not merely close to the old render -- it is the old render. */
+    /* Cached because SkyboxShader.current() would otherwise read
+     * java.util.prefs on every sprite build. OptWnd calls reload() when the
+     * player changes either of them. volatile because OptWnd writes on the UI
+     * thread while the render tree reads during slot construction. */
     public static volatile int style = Utils.getprefi("skyboxStyle", 0);
     public static volatile boolean hq = Utils.getprefb("skyboxQuality", false);
-    public static volatile int fogband = Utils.getprefi("skyboxFogBand", 100);
-    public static volatile int fogstr = Utils.getprefi("skyboxFogStrength", 100);
 
     public static void reload() {
 	style = Utils.getprefi("skyboxStyle", 0);
 	hq = Utils.getprefb("skyboxQuality", false);
-	fogband = Utils.getprefi("skyboxFogBand", 100);
-	fogstr = Utils.getprefi("skyboxFogStrength", 100);
     }
 
     public static final Uniform u_sundir = new Uniform(VEC3, "skysun", p -> {
@@ -253,25 +169,6 @@ public class SkyPalette extends State {
 	    SkyPalette s = p.get(slot);
 	    return((s == null) ? 0f : s.night);
 	}, slot);
-    public static final Uniform u_maprect = new Uniform(VEC4, "skymaprect", p -> {
-	    SkyPalette s = p.get(slot);
-	    return((s == null) ? new float[] {0f, 0f, 0f, 0f}
-		   : new float[] {s.rx0, s.ry0, s.rx1, s.ry1});
-	}, slot);
-    public static final Uniform u_fogstr = new Uniform(FLOAT, "skyfogstr", p -> {
-	    SkyPalette s = p.get(slot);
-	    return((s == null) ? 0f : s.fog);
-	}, slot);
-    /* Falls back to 1, not to 0 like its neighbours. Theirs is an "off"
-     * value; this one is a smoothstep edge, and zero there is the undefined
-     * case band's own comment describes. u_fogstr's fallback already turns the
-     * fog off in this state, so the value itself is never seen -- but a NaN
-     * would not care about that. */
-    public static final Uniform u_fogband = new Uniform(FLOAT, "skyfogband", p -> {
-	    SkyPalette s = p.get(slot);
-	    return((s == null) ? 1f : s.band);
-	}, slot);
-
     /* Eye space -> world space rotation, for turning a fragment's view
      * direction back into a world direction. Same expression the old
      * skybox shader used. */
@@ -321,28 +218,23 @@ public class SkyPalette extends State {
     public ShaderMacro shader() {return(null);}
     public void apply(Pipe p) {p.put(slot, this);}
 
-    /* band belongs here for the same reason fog does. PView.basic skips
-     * rebuilding its ostate when the new palette equals the old one, so a
-     * field left out of this comparison is a field the player can drag with no
-     * effect until something else happens to move. */
+    /* PView.basic skips rebuilding its ostate when the new palette equals the
+     * old one, so a field left out of this comparison is a field that can
+     * change with no effect until something else happens to move. */
     public boolean equals(Object o) {
 	if(!(o instanceof SkyPalette))
 	    return(false);
 	SkyPalette t = (SkyPalette)o;
-	return((sx == t.sx) && (sy == t.sy) && (sz == t.sz)
-	       && (rx0 == t.rx0) && (ry0 == t.ry0) && (rx1 == t.rx1) && (ry1 == t.ry1)
-	       && (night == t.night) && (fog == t.fog) && (band == t.band));
+	return((sx == t.sx) && (sy == t.sy) && (sz == t.sz) && (night == t.night));
     }
 
     public int hashCode() {
 	return(Float.hashCode(sx) ^ Float.hashCode(sy) ^ Float.hashCode(sz)
-	       ^ Float.hashCode(rx0) ^ Float.hashCode(ry0)
-	       ^ Float.hashCode(rx1) ^ Float.hashCode(ry1)
-	       ^ Float.hashCode(night) ^ Float.hashCode(fog) ^ Float.hashCode(band));
+	       ^ Float.hashCode(night));
     }
 
     public String toString() {
-	return(String.format("#<skypalette sun=(%f, %f, %f) rect=(%f, %f, %f, %f) night=%f fog=%f band=%f>",
-			     sx, sy, sz, rx0, ry0, rx1, ry1, night, fog, band));
+	return(String.format("#<skypalette sun=(%f, %f, %f) night=%f>", sx, sy, sz, night));
     }
+
 }

@@ -603,9 +603,7 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 	this.glob = glob;
 	this.cc = cc;
 	this.plgob = plgob;
-	/* The outline pass is a screen quad with no Homo3D -- fog has nothing
-	 * meaningful to measure there. See SkyFog's macro guard. */
-	basic.add(new Outlines(false), SkyFog.slot.nil);
+	basic.add(new Outlines(false));
 	basic.add(this.gobs = new Gobs());
 	basic.add(this.terrain = new Terrain());
 	this.clickmap = new ClickMap();
@@ -1411,44 +1409,15 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
     }
 
     private void updsky() {
-	/* Attach/detach only on the skybox option itself. Everything else --
-	 * caves, interiors, waiting for the server's first light packet --
-	 * rides on the fog-strength uniform, because attaching or detaching
-	 * SkyFog changes the shader macro set and recompiles every terrain,
-	 * gob and water program in the scene. */
+	/* The palette is uniforms only -- SkyPalette.shader() is null -- so
+	 * replacing one with another never changes the shader macro set, and no
+	 * drop-then-set dance is needed to keep the programs in step. Only the
+	 * skybox option itself attaches and detaches. */
 	if(!Gob.skyenabled()) {
 	    basic(SkyPalette.class, null);
-	    basic(SkyFog.class, null);
 	    return;
 	}
-	float[] rect;
-	try {
-	    rect = SkyPalette.maprect(new Coord2d(getcc()), view);
-	} catch(Loading l) {
-	    return;
-	}
-	basic(SkyPalette.class, SkyPalette.from(glob, rect, Gob.skyvisible()));
-	/* Not a plain basic(SkyFog.class, SkyFog.current()). Replacing one
-	 * SkyFog with another leaves the state slot defined, and RenderTree
-	 * only recompiles shader programs when a slot changes between defined
-	 * and undefined (RenderTree.java:611); a slot that stays defined gets
-	 * its uniforms refreshed and nothing else (GLDrawList.java:1032). So
-	 * every terrain and gob would keep the program built from the old fog
-	 * macro while the applier resolves the new one, which is the
-	 * ProgramMismatchException at GLDrawList.java:966-967. cheap and
-	 * quality differ in exactly that way -- SkyLib.horA against horB.
-	 *
-	 * Dropping the state first makes the slot undefined and forces the
-	 * full recompile. This is the same idiom lights() uses below when the
-	 * LightCompiler changes, and updsmap() when the shadow resolution
-	 * does. Guarded, so it costs nothing on the ticks where the
-	 * fog is unchanged, and runs only when the user changes the style or
-	 * the quality option. SkyPalette above needs no such care: its
-	 * shader() is null (SkyPalette.java:284), so it is uniforms only. */
-	SkyFog nfog = SkyFog.current();
-	if(basic(SkyFog.class) != nfog)
-	    basic(SkyFog.class, null);
-	basic(SkyFog.class, nfog);
+	basic(SkyPalette.class, SkyPalette.from(glob));
     }
 
     public RenderTree.Slot drawadd(RenderTree.Node extra) {

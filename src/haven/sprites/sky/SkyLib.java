@@ -10,10 +10,9 @@ import static haven.render.sl.Type.*;
  * referenced from inside a body, so nothing here needs to know about game
  * state. SkyPalette passes the state in at the call site.
  *
- * Handedness: the four public entry points (sky_colA, sky_colB, sky_horA,
- * sky_horB) take world-space Z-up directions and convert to Y-up exactly
- * once, at their first line. Every helper below them is Y-up already and
- * must not convert again.
+ * Handedness: the two public entry points (sky_colA, sky_colB) take
+ * world-space Z-up directions and convert to Y-up exactly once, at their first
+ * line. Every helper below them is Y-up already and must not convert again.
  *
  * Local variables declared inside raw bodies are prefixed sk_ so they cannot
  * collide with the symbols the SL compiler generates. */
@@ -57,11 +56,6 @@ public abstract class SkyLib {
 		public void output(Output out) {out.write(name);}
 	    });
     }
-
-    /* How far the fog colour is pulled toward its own luminance. 0 = the raw
-     * sky colour, 1 = grey. Tuned in Task 12; the prototype settled near
-     * 0.35 for Mode B. */
-    public static final double DESAT = 0.35;
 
     /* --- where the sky sits on the screen ---------------------------- */
 
@@ -327,20 +321,14 @@ public abstract class SkyLib {
 
     /* --- shared output transform ------------------------------------- */
 
-    /* Reinhard + gamma. Sky colour and fog colour MUST both pass through
-     * this and only this, or they diverge and the horizon seam returns. */
+    /* Reinhard + gamma. Both modes MUST pass through this and only this, so
+     * they stay in one colour space. It had a second reason to be shared --
+     * the horizon fog fading the map edge into the sky, which drifted visibly
+     * if it tonemapped separately -- and that consumer is gone. */
     public static final Function tone = new Function.Def(VEC3, "sky_tone") {{
 	Expression c = param(IN, VEC3).ref();
 	code.add(raw("vec3 sk_c = $0 / ($0 + vec3(0.72));\n" +
 		     "return pow(sk_c, vec3(1.0 / 2.2));\n", c));
-    }};
-
-    /* Pull a colour toward its own luminance. This is what stops the
-     * saturated sunrise band from making the sky/ground seam obvious. */
-    public static final Function desat = new Function.Def(VEC3, "sky_desat") {{
-	Expression c = param(IN, VEC3).ref();
-	Expression a = param(IN, FLOAT).ref();
-	code.add(raw("return mix($0, vec3(dot($0, vec3(0.2126, 0.7152, 0.0722))), $1);\n", c, a));
     }};
 
     /* --- shared sky features (Y-up) ---------------------------------- */
@@ -481,8 +469,10 @@ public abstract class SkyLib {
 	 * the 0-to-30-degree band above the terrain is ever on screen, and at
 	 * 0.42 that band was almost entirely the pale horizon end of the
 	 * gradient -- measured 12 points of separation across the whole
-	 * visible sky. 0.75 moves the pale part down into the strip the fog
-	 * covers and leaves open blue above it. */
+	 * visible sky. 0.75 moves the pale part down into the strip just above
+	 * the terrain and leaves open blue above it. (That strip used to be
+	 * the one the horizon fog covered, which is what the value was chosen
+	 * against; the fog is gone, the framing is not.) */
 	code.add(raw("float sk_sh = $2;\n" +
 		     /* Above the horizon the old line stands. Below it, twilight
 		      * does not stop at a point -- it decays -- so the linear
@@ -562,7 +552,7 @@ public abstract class SkyLib {
      * larger and would stop being invisible. The crossings are cheap at this
      * width, not free at every width.
      *
-     * The zero-length guard is horB's, for the same reason: normalize(vec2(0))
+     * The zero-length guard is here for the plain reason: normalize(vec2(0))
      * is NaN and would poison the whole sky. Unreachable with a real sun, which
      * cannot exceed PEAK of elevation, but the vector is a uniform. */
     public static final Function morning = new Function.Def(FLOAT, "sky_morning") {{
@@ -583,9 +573,13 @@ public abstract class SkyLib {
 	/* The sun's real elevation, from sky_sunh -- same reason baseA takes
 	 * it, and the defect ADR-0010 left open here. */
 	Expression sh = param(IN, FLOAT).ref();
-	/* sky_morning, for the same reason again: this function is called six
-	 * times per fragment -- once from colB and five times from horB -- and
-	 * the gate is the same value in all six. */
+	/* sky_morning, for the same reason again. This was hoisted when the
+	 * function ran six times per fragment -- once from colB and five times
+	 * from the horizon fog -- so the gate could not be recomputed six
+	 * times over. Only colB is left, so the hoist no longer saves
+	 * anything; it stays because passing the value in is what keeps this
+	 * function pure maths over its parameters, which the file's header
+	 * asks of every function here. */
 	Expression am = param(IN, FLOAT).ref();
 	/* 0.98 was a cloud's asymmetry, not an atmosphere's. Measured on the
 	 * phase function it took half the sun's brightness away within ONE
@@ -635,9 +629,12 @@ public abstract class SkyLib {
 		      * move 0.45, while sunrise moves 18.
 		      *
 		      * The floor is 0.60 rather than something smaller because
-		      * horB builds the fog from this same function; taking the
-		      * away side much darker turns the map edge behind the
-		      * player into a wall. */
+		      * the horizon fog built its colour from this same
+		      * function, and taking the away side much darker turned
+		      * the map edge behind the player into a wall. That
+		      * constraint died with the fog. The number stays: what it
+		      * would become without the constraint is a look to be
+		      * judged on screen, not arithmetic to be redone here. */
 		     "float sk_low = exp(-abs($2) * 4.0);\n" +
 		     "float sk_side = 0.60 + 0.40 * pow(clamp(sk_mu, 0.0, 1.0), 1.5);\n" +
 		     "sk_day *= mix(1.0, sk_side, sk_low);\n" +
@@ -1096,65 +1093,5 @@ public abstract class SkyLib {
 		     stars.call(d, s, t, g, sh),
 		     cloudsB.call(d, s, t, col, sh),
 		     tone.call(col), night, e, morning.call(s)));
-    }};
-
-    /* Fog colour. Deliberately calls base* (no sun disc) so a 6x overbright
-     * disc can never be averaged into the haze, and deliberately shares
-     * tone() with col* so fog and sky stay in one colour space. */
-    public static final Function horA = new Function.Def(VEC3, "sky_horA") {{
-	Expression wd = param(IN, VEC3).ref();
-	Expression ws = param(IN, VEC3).ref();
-	Expression night = param(IN, FLOAT).ref();
-	Expression h = id("sk_h"), s = id("sk_s"), acc = id("sk_acc");
-	code.add(raw("vec3 sk_w = $0;\n" +
-		     "vec3 sk_s = $1;\n" +
-		     /* Low, because the fog has to meet the drawn sky where the
-		      * terrain stops -- a few degrees over the horizon, not the
-		      * 20 the old 0.26 worked out to. Too high and the fog
-		      * lands visibly bluer than the sky it is supposed to
-		      * dissolve into. */
-		     "vec3 sk_h = normalize(vec3(sk_w.x, 0.12, sk_w.z));\n" +
-		     "vec3 sk_acc = $2;\n" +
-		     "return mix($3, vec3(1.0), $4);\n",
-		     yup.call(wd), yup.call(ws),
-		     baseA.call(h, s, sunh.call(s)),
-		     tone.call(desat.call(acc, Cons.l(DESAT))),
-		     night));
-    }};
-
-    public static final Function horB = new Function.Def(VEC3, "sky_horB") {{
-	Expression wd = param(IN, VEC3).ref();
-	Expression ws = param(IN, VEC3).ref();
-	Expression night = param(IN, FLOAT).ref();
-	Expression s = id("sk_s"), acc = id("sk_acc");
-	Expression t0 = id("sk_t0"), t1 = id("sk_t1"), t2 = id("sk_t2"), t3 = id("sk_t3"), t4 = id("sk_t4");
-	/* One asin for all five samples, as colB does for its own. */
-	Expression sh = id("sk_sh");
-	/* And one sky_morning for all five. */
-	Expression am = id("sk_am");
-	code.add(raw("vec3 sk_w = $0;\n" +
-		     "vec3 sk_s = $1;\n" +
-		     "float sk_sh = $2;\n" +
-		     "float sk_am = $10;\n" +
-		     /* Guard: looking straight down makes sk_w.xz zero, and
-		      * normalize(vec3(0)) is NaN -- which then poisons the
-		      * mix() in SkyFog even at a fog factor of 0. Reachable
-		      * on the free camera at steep elevation. */
-		     "vec2 sk_hz = sk_w.xz;\n" +
-		     "if(dot(sk_hz, sk_hz) < 1.0e-8) sk_hz = vec2(1.0, 0.0);\n" +
-		     "vec3 sk_f = normalize(vec3(sk_hz.x, 0.0, sk_hz.y));\n" +
-		     "vec3 sk_t0 = normalize(sk_f + vec3(0.0, 0.02, 0.0));\n" +
-		     "vec3 sk_t1 = normalize(sk_f + vec3(0.0, 0.09, 0.0));\n" +
-		     "vec3 sk_t2 = normalize(sk_f + vec3(0.0, 0.20, 0.0));\n" +
-		     "vec3 sk_t3 = normalize(sk_f + vec3(0.0, 0.36, 0.0));\n" +
-		     "vec3 sk_t4 = normalize(sk_f + vec3(0.0, 0.58, 0.0));\n" +
-		     "vec3 sk_acc = $3 * 0.16 + $4 * 0.22 + $5 * 0.26 + $6 * 0.22 + $7 * 0.14;\n" +
-		     "return mix($8, vec3(1.0), $9);\n",
-		     yup.call(wd), yup.call(ws), sunh.call(s),
-		     baseB.call(t0, s, sh, am), baseB.call(t1, s, sh, am),
-		     baseB.call(t2, s, sh, am), baseB.call(t3, s, sh, am),
-		     baseB.call(t4, s, sh, am),
-		     tone.call(desat.call(acc, Cons.l(DESAT))),
-		     night, morning.call(s)));
     }};
 }

@@ -544,20 +544,19 @@ public class Gob implements RenderTree.Node, Sprite.Owner, Skeleton.ModOwner, Eq
 	this(glob, c, -1);
     }
 
-    /* Is the skybox option on at all? Decides whether SkyFog is attached,
-     * which changes the shader set -- so it must change rarely.
+    /* Is the skybox option on at all? Decides whether MapView attaches the
+     * sky palette and whether this gob wears the sky cube.
      *
      * The null check is real: OptWnd.enableSkyboxCheckBox is a static field
-     * (OptWnd.java:3962) assigned only in the OptWnd constructor (:4182).
-     * Gob's existing use is reached only after isMe resolves, but MapView
-     * calls this from the first frame. */
+     * assigned only in the OptWnd constructor. Gob's existing use is reached
+     * only after isMe resolves, but MapView calls this from the first
+     * frame. */
     public static boolean skyenabled() {
 	return((OptWnd.enableSkyboxCheckBox != null) && OptWnd.enableSkyboxCheckBox.a);
     }
 
-    /* Is sky actually being drawn right now? Shared by Gob's skybox overlay
-     * and by MapView's fog strength -- the two must agree, or caves get fog
-     * with no sky above it.
+    /* Is sky actually being drawn right now? The skybox overlay's own gate:
+     * inside a cave or a cabin there is no sky to show, so the cube comes off.
      *
      * GameUI.backgroundSong cannot be null: GameUI.java:123 initialises it
      * to "" and only string literals are ever assigned to it. */
