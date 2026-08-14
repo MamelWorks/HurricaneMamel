@@ -565,6 +565,58 @@ public abstract class SkyLib {
 		     (float)Math.sin(SkyPalette.EAST_AZ) + ")));\n", s));
     }};
 
+    /* Mode B's daylight exposure, and the elevation over which it opens.
+     *
+     * sky_tone is Reinhard with a white point of 0.72, and this model arrives
+     * at it far above that. Linear radiance of the band the camera actually
+     * shows, at 08:45: 1.92 facing away from the sun and 2.55 facing it, with
+     * 100% of those pixels past the knee. Mode A arrives at 0.57 and 0.81, so
+     * it is under the knee and mode B never is.
+     *
+     * What that costs is COLOUR, not just brightness, because Reinhard presses
+     * the channels together as it compresses. The linear sky here is not grey
+     * -- normalised it reads (0.550, 0.775, 1.000) against mode A's (0.513,
+     * 0.686, 1.000), so it is the better blue of the two -- and it reached the
+     * screen at (209, 219, 226), a saturation of 0.078. Sampled off a player's
+     * screenshot at the same hour: (206, 214, 218), 0.068.
+     *
+     * The defect that decides the value is not the brightness, which is a
+     * taste, but the FLATNESS, which is not. Measured across the visible band
+     * from 07:00 to 17:00 the whole daylight arc spans 8.7 levels of 255:
+     * 08:45, noon and 15:00 are within three levels of each other, because
+     * above the knee a difference in radiance is not a difference on screen.
+     * At 0.25 that arc is 33.1 levels. That is what the number buys.
+     *
+     * Two candidate justifications were measured and both failed, and they are
+     * recorded so they are not proposed again. Matching mode A's reading is
+     * copying another shader's fingerprint, which this directory's own checks
+     * condemn. And sitting the band ON the white point does not exist: swept
+     * over six hours and three bearings, 0.30 puts it between 0.73 and 1.71,
+     * so no constant lands the whole day under 0.72 without a dark noon. The
+     * survival curve has no knee to stop at either -- Reinhard is a smooth
+     * hyperbola, and each step down buys about the same colour back. 0.25 is a
+     * judgement made from renders, bounded by the arc figure above.
+     *
+     * DAY_EXPO_UP is what keeps the change out of everything that was tuned.
+     * The gate is clamped at 1.0 for a sun at or below the horizon, so every
+     * twilight and the whole night are untouched -- verified as an exact
+     * equality, not a bound: over thirteen times from 18:00 through 05:55 and
+     * four camera bearings, the maximum per-pixel difference is 0.000e+00. A
+     * FLAT exposure is what that rules out; at 0.25 it takes 05:20 to 0.199
+     * against dawn_check's floor of 0.220 and moves 06:00 by 48 levels where
+     * the contract is bit-identity.
+     *
+     * 0.5 radians of real elevation is reached at 07:40, and by symmetry at
+     * 16:20, so the gate is fully open across the hours anyone plays and
+     * closed across the hours anyone tuned.
+     *
+     * One thing the sweep turned up and this does not explain: the daylight
+     * arc is not shaped like a day. Its darkest point is 08:45 and its
+     * brightest 17:00, with noon between them. Whatever that is, it is not
+     * this constant -- the ordering is the same before and after. */
+    public static final double DAY_EXPO = 0.25;
+    public static final double DAY_EXPO_UP = 0.5;   /* rad of real elevation */
+
     /* --- Mode B: Rayleigh + Mie (Y-up, no sun disc) ------------------- */
 
     public static final Function baseB = new Function.Def(VEC3, "sky_baseB") {{
@@ -1085,7 +1137,13 @@ public abstract class SkyLib {
 		     "sk_hz = (sk_hl < 1.0e-5) ? vec2(1.0, 0.0) : (sk_hz / sk_hl);\n" +
 		     "sk_hz *= cos(sk_e);\n" +
 		     "sk_d = vec3(sk_hz.x, sin(sk_e), sk_hz.y);\n" +
-		     "vec3 sk_col = $3 + $4 + $5;\n" +
+		     /* The exposure multiplies the ATMOSPHERE alone. The disc,
+		      * the stars and the clouds keep the levels they were
+		      * judged at -- and the clouds gain by it, since the sky
+		      * they sit on stops being as bright as they are. See
+		      * DAY_EXPO. */
+		     "vec3 sk_col = ($3 * mix(1.0, " + DAY_EXPO +
+		     ", clamp(sk_sh / " + DAY_EXPO_UP + ", 0.0, 1.0))) + $4 + $5;\n" +
 		     "sk_col = $6;\n" +
 		     "return mix($7, vec3(1.0), $8);\n",
 		     yup.call(wd), yup.call(ws), sunh.call(s),
