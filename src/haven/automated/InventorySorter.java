@@ -1,273 +1,251 @@
 package haven.automated;
 
 import haven.*;
+import haven.res.ui.tt.q.quality.Quality;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
+import java.util.stream.Collectors;
 
-public class InventorySorter implements Runnable {
-	private final GameUI gui;
-	private final Inventory inv;
+import static haven.Inventory.sqsz;
 
-	public InventorySorter(GameUI gui, Inventory inv) {
-		this.gui = gui;
-		this.inv = inv;
+public class InventorySorter implements Defer.Callable<Void> {
+    private static final String[] EXCLUDE = {
+	"Character Sheet", "Study",
+	"Chicken Coop", "Belt", "Pouch", "Purse",
+	"Cauldron", "Finery Forge", "Fireplace", "Frame",
+	"Herbalist Table", "Kiln", "Ore Smelter", "Smith's Smelter",
+	"Oven", "Pane mold", "Rack", "Smoke shed",
+	"Stack Furnace", "Steelbox", "Tub"
+    };
+
+    private static final Comparator<WItem> ITEM_COMPARATOR = Comparator
+	.comparing((WItem w) -> w.item.getname())
+	.thenComparing(w -> {
+	    try { return w.item.res.get().name; } catch (Loading e) { return ""; }
+	})
+	.thenComparing(w -> {
+	    Quality q = ItemInfo.find(Quality.class, w.item.info());
+	    return q != null ? q.q : 0.0;
+	}, Comparator.reverseOrder());
+
+    private static final Object lock = new Object();
+    private static InventorySorter current;
+    private Defer.Future<Void> task;
+    private final List<Inventory> inventories;
+    private final GameUI gui;
+
+    private InventorySorter(List<Inventory> inventories, GameUI gui) {
+	this.inventories = inventories;
+	this.gui = gui;
+    }
+
+    public static void sort(Inventory inv) {
+	if (inv.ui.gui.vhand != null) {
+	    inv.ui.gui.error("Need empty cursor to sort inventory!");
+	    return;
+	}
+	start(new InventorySorter(Collections.singletonList(inv), inv.ui.gui));
+    }
+
+    public static void sortAll(GameUI gui) {
+	if (gui.vhand != null) {
+	    gui.error("Need empty cursor to sort inventory!");
+	    return;
+	}
+	List<Inventory> targets = new ArrayList<>();
+	for (Inventory inv : gui.ui.root.children(Inventory.class)) {
+	    Window wnd = inv.getparent(Window.class);
+	    if (wnd != null && isExcluded(wnd.cap)) continue;
+	    targets.add(inv);
+	}
+	if (!targets.isEmpty()) {
+	    start(new InventorySorter(targets, gui));
+	}
+    }
+
+    private static boolean isExcluded(String cap) {
+	if (cap == null) return false;
+	for (String ex : EXCLUDE) {
+	    if (ex.equals(cap)) return true;
+	}
+	return false;
+    }
+
+    @Override
+    public Void call() throws InterruptedException {
+	for (Inventory inv : inventories) {
+	    if (inv.parent == null) return null;
+	    doSort(inv);
+	}
+	synchronized (lock) {
+	    if (current == this) current = null;
+	}
+	gui.ui.sfxrl(sfx_done);
+	return null;
+    }
+
+    private static class Entry {
+	final WItem w;
+	final Coord slots;
+	Coord current;
+	Coord target;
+
+	Entry(WItem w, Coord slots, Coord current) {
+	    this.w = w;
+	    this.slots = slots;
+	    this.current = current;
+	    this.target = current;
+	}
+    }
+
+    private void doSort(Inventory inv) throws InterruptedException {
+	// Build mask grid (permanently blocked cells)
+	boolean[][] maskGrid = new boolean[inv.isz.x][inv.isz.y];
+	if (inv.sqmask != null) {
+	    int mo = 0;
+	    for (int y = 0; y < inv.isz.y; y++)
+		for (int x = 0; x < inv.isz.x; x++)
+		    maskGrid[x][y] = inv.sqmask[mo++];
 	}
 
-	@Override
-	public void run() {
-		try {
-			sortByName();
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
+	// Collect all items, skip those with unloaded sprites
+	List<Entry> entries = new ArrayList<>();
+	for (Widget wdg = inv.lchild; wdg != null; wdg = wdg.prev) {
+	    if (!wdg.visible || !(wdg instanceof WItem)) continue;
+	    WItem w = (WItem) wdg;
+	    if (w.item.spr() == null) continue;
+	    Coord slots = w.sz.div(sqsz);
+	    Coord current = w.c.sub(1, 1).div(sqsz);
+	    entries.add(new Entry(w, slots, current));
 	}
 
-	private void sortByName() {
-		List<InvItem> items = new ArrayList<>();
-		List<Integer> ignoreSlots = new ArrayList<>();
+	// Sort all items together
+	entries.sort(Comparator.comparing(e -> e.w, ITEM_COMPARATOR));
 
-		// Collect all items
-		for (Widget wdg = inv.child; wdg != null; wdg = wdg.next) {
-			if (wdg instanceof WItem) {
-				InvItem item = new InvItem((WItem) wdg);
-				Coord sz = item.getSize();
-
-				// If item is larger than 1x1, mark those slots as ignored
-				if (sz.x > 1 || sz.y > 1) {
-					Coord slot = item.getSlot();
-					for (int y = 0; y < sz.y; y++) {
-						for (int x = 0; x < sz.x; x++) {
-							Integer slotIndex = coordToSloti(slot.add(x, y));
-							if (slotIndex != null) {
-								ignoreSlots.add(slotIndex);
-							}
-						}
-					}
-					continue; // Skip large items from sorting
-				}
-				items.add(item);
-			}
-		}
-
-		if (items.isEmpty()) {
-			return;
-		}
-
-		// Sort by slot position first, then by name
-		items.sort(Comparator.comparing(InvItem::getSloti));
-		items.sort(Comparator.comparing(InvItem::getName));
-
-		// Perform the sorting by swapping items
-		for (int i = 0; i < items.size(); i++) {
-			InvItem invItem = items.get(i);
-			InvItem currentItem = getItem(invItem.getSlot());
-
-			// Calculate target slot index, skipping ignored slots
-			int targetSloti = i;
-			for (Integer ignoredSlot : ignoreSlots) {
-				if (ignoredSlot <= targetSloti) {
-					targetSloti++;
-				}
-			}
-
-			Coord targetSlot = slotiToCoord(targetSloti);
-			if (targetSlot == null) continue;
-
-			// Check if item is already in the correct position
-			if (invItem.equals(currentItem) && invItem.getSloti() != targetSloti) {
-				// Pick up the item
-				if (!invItem.take()) {
-					break;
-				}
-
-				// Get whatever item is currently at target position
-				InvItem displacedItem = getItem(targetSlot);
-
-				// Drop at target position
-				if (!drop(targetSlot)) {
-					break;
-				}
-
-				// Handle the displaced item (chain of swaps)
-				while (displacedItem != null && gui.vhand != null) {
-					Integer newTargetIndex = getTargetIndex(items, displacedItem, ignoreSlots);
-					if (newTargetIndex == null) {
-						break;
-					}
-
-					Coord newTargetSlot = slotiToCoord(newTargetIndex);
-					if (newTargetSlot == null) {
-						break;
-					}
-
-					displacedItem = getItem(newTargetSlot);
-					if (!drop(newTargetSlot)) {
-						break;
-					}
-				}
-			}
-		}
+	// Assign target positions in scan order, respecting each item's size
+	boolean[][] assignGrid = copyGrid(maskGrid, inv.isz);
+	for (Entry e : entries) {
+	    Coord pos = findFit(assignGrid, inv.isz, e.slots);
+	    if (pos == null) break;
+	    e.target = pos;
+	    markGrid(assignGrid, pos, e.slots, true);
 	}
 
-	private Integer getTargetIndex(List<InvItem> items, InvItem item, List<Integer> ignoreSlots) {
-		for (int i = 0; i < items.size(); i++) {
-			if (items.get(i).equals(item)) {
-				int targetSloti = i;
-				for (Integer ignoredSlot : ignoreSlots) {
-					if (ignoredSlot <= targetSloti) {
-						targetSloti++;
-					}
-				}
-				return targetSloti;
+	List<Entry> singles = entries.stream().filter(e -> e.slots.x * e.slots.y == 1).collect(Collectors.toList());
+	List<Entry> multis  = entries.stream().filter(e -> e.slots.x * e.slots.y > 1).collect(Collectors.toList());
+
+	// Phase 1: place multi-tile items
+	// For each, first evict any 1x1 items from its target cells, then take+drop it
+	boolean anyMultiSkipped = false;
+	for (Entry me : multis) {
+	    if (me.current.equals(me.target)) continue;
+	    boolean blocked = false;
+	    for (int tx = me.target.x; tx < me.target.x + me.slots.x && !blocked; tx++) {
+		for (int ty = me.target.y; ty < me.target.y + me.slots.y && !blocked; ty++) {
+		    Coord cell = new Coord(tx, ty);
+		    for (Entry se : singles) {
+			if (se.current.equals(cell)) {
+			    Coord free = findFreeCell(inv.isz, maskGrid, entries);
+			    if (free == null) { blocked = true; break; }
+			    se.w.item.wdgmsg("take", Coord.z);
+			    Thread.sleep(10);
+			    inv.wdgmsg("drop", free);
+			    Thread.sleep(10);
+			    se.current = free;
+			    break;
 			}
+		    }
 		}
-		return null;
+	    }
+	    if (blocked) { anyMultiSkipped = true; continue; }
+	    me.w.item.wdgmsg("take", Coord.z);
+	    Thread.sleep(10);
+	    inv.wdgmsg("drop", me.target);
+	    Thread.sleep(10);
+	    me.current = me.target;
 	}
+	if (anyMultiSkipped)
+	    gui.error("Could not move all large items — inventory too full");
 
-	private InvItem getItem(Coord slot) {
-		for (Widget wdg = inv.child; wdg != null; wdg = wdg.next) {
-			if (wdg instanceof WItem) {
-				WItem w = (WItem) wdg;
-				Coord itemSlot = w.c.sub(1, 1).div(Inventory.sqsz);
-				if (itemSlot.equals(slot)) {
-					return new InvItem(w);
-				}
-			}
+	// Phase 2: sort 1x1 items using chain/swap algorithm
+	for (Entry se : singles) {
+	    if (se.current.equals(se.target)) continue;
+	    se.w.item.wdgmsg("take", Coord.z);
+	    Entry handu = se;
+	    while (handu != null) {
+		inv.wdgmsg("drop", handu.target);
+		Entry next = null;
+		for (Entry x : singles) {
+		    if (x != handu && x.current.equals(handu.target)) { next = x; break; }
 		}
-		return null;
+		handu.current = handu.target;
+		handu = next;
+	    }
+	    Thread.sleep(10);
 	}
+    }
 
-	private boolean drop(Coord slot) {
-		InvItem itemBefore = getItem(slot);
-		inv.wdgmsg("drop", slot);
-
-		// Wait for the drop to complete (item at slot changes)
-		for (int sleep = 0; sleep < 1000; sleep += 10) {
-			InvItem itemAfter = getItem(slot);
-			if (itemAfter == null || !itemAfter.equals(itemBefore)) {
-				return true;
-			}
-			try {
-				Thread.sleep(10);
-			} catch (InterruptedException e) {
-				return false;
-			}
-		}
-		return true;
+    // Find the first position where an item of given slots fits (left-to-right, top-to-bottom)
+    private static Coord findFit(boolean[][] grid, Coord isz, Coord slots) {
+	for (int y = 0; y <= isz.y - slots.y; y++) {
+	    for (int x = 0; x <= isz.x - slots.x; x++) {
+		if (fits(grid, x, y, slots)) return new Coord(x, y);
+	    }
 	}
+	return null;
+    }
 
-	private Coord slotiToCoord(int slot) {
-		Coord c = new Coord();
-		int index = 0;
-		for (c.y = 0; c.y < inv.isz.y; c.y++) {
-			for (c.x = 0; c.x < inv.isz.x; c.x++) {
-				if (inv.sqmask == null || !inv.sqmask[c.y * inv.isz.x + c.x]) {
-					if (slot == index) {
-						return new Coord(c);
-					}
-					index++;
-				}
-			}
+    private static boolean fits(boolean[][] grid, int ox, int oy, Coord slots) {
+	for (int x = 0; x < slots.x; x++)
+	    for (int y = 0; y < slots.y; y++)
+		if (grid[ox + x][oy + y]) return false;
+	return true;
+    }
+
+    // Find a free 1x1 cell not currently occupied by any item
+    private static Coord findFreeCell(Coord isz, boolean[][] maskGrid, List<Entry> entries) {
+	outer:
+	for (int y = 0; y < isz.y; y++) {
+	    for (int x = 0; x < isz.x; x++) {
+		if (maskGrid[x][y]) continue;
+		for (Entry e : entries) {
+		    for (int ex = e.current.x; ex < e.current.x + e.slots.x; ex++)
+			for (int ey = e.current.y; ey < e.current.y + e.slots.y; ey++)
+			    if (ex == x && ey == y) continue outer;
 		}
-		return null;
+		return new Coord(x, y);
+	    }
 	}
+	return null;
+    }
 
-	private Integer coordToSloti(Coord slot) {
-		Coord c = new Coord();
-		int index = 0;
-		for (c.y = 0; c.y < inv.isz.y; c.y++) {
-			for (c.x = 0; c.x < inv.isz.x; c.x++) {
-				if (inv.sqmask == null || !inv.sqmask[c.y * inv.isz.x + c.x]) {
-					if (slot.x == c.x && slot.y == c.y) {
-						return index;
-					}
-					index++;
-				}
-			}
-		}
-		return null;
+    private static boolean[][] copyGrid(boolean[][] src, Coord sz) {
+	boolean[][] copy = new boolean[sz.x][sz.y];
+	for (int x = 0; x < sz.x; x++)
+	    copy[x] = Arrays.copyOf(src[x], sz.y);
+	return copy;
+    }
+
+    private static void markGrid(boolean[][] grid, Coord pos, Coord slots, boolean val) {
+	for (int x = 0; x < slots.x; x++)
+	    for (int y = 0; y < slots.y; y++)
+		grid[pos.x + x][pos.y + y] = val;
+    }
+
+    public static void cancel() {
+	synchronized (lock) {
+	    if (current != null) {
+		current.task.cancel();
+		current = null;
+	    }
 	}
+    }
 
-	private class InvItem {
-		private final WItem wItem;
-		private String name;
-		private Coord slot;
-		private Integer sloti;
-		private Coord size;
+    private static final Audio.Clip sfx_done = Audio.resclip(Resource.remote().loadwait("sfx/hud/on"));
 
-		public InvItem(WItem wItem) {
-			this.wItem = wItem;
-		}
-
-		public WItem getWItem() {
-			return wItem;
-		}
-
-		public String getName() {
-			if (name == null) {
-				try {
-					name = wItem.item.getname();
-				} catch (Loading e) {
-					name = "???";
-				}
-			}
-			return name;
-		}
-
-		public Coord getSlot() {
-			if (slot == null) {
-				slot = wItem.c.sub(1, 1).div(Inventory.sqsz);
-			}
-			return slot;
-		}
-
-		public Integer getSloti() {
-			if (sloti == null) {
-				sloti = coordToSloti(getSlot());
-			}
-			return sloti != null ? sloti : 0;
-		}
-
-		public Coord getSize() {
-			if (size == null) {
-				size = wItem.sz.div(Inventory.sqsz);
-			}
-			return size;
-		}
-
-		public boolean take() {
-			for (int attempts = 0; attempts < 5; attempts++) {
-				wItem.item.wdgmsg("take", Coord.z);
-
-				// Wait for hand to be occupied
-				for (int sleep = 0; sleep < 1000; sleep += 10) {
-					if (gui.vhand != null) {
-						return true;
-					}
-					try {
-						Thread.sleep(10);
-					} catch (InterruptedException e) {
-						return false;
-					}
-				}
-			}
-			return false;
-		}
-
-		@Override
-		public boolean equals(Object o) {
-			if (this == o) return true;
-			if (!(o instanceof InvItem)) return false;
-			InvItem invItem = (InvItem) o;
-			return getWItem().equals(invItem.getWItem());
-		}
-
-		@Override
-		public int hashCode() {
-			return Objects.hash(wItem);
-		}
-	}
+    private static void start(InventorySorter sorter) {
+	cancel();
+	synchronized (lock) { current = sorter; }
+	sorter.task = Defer.later(sorter);
+    }
 }

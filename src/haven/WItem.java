@@ -156,25 +156,8 @@ public class WItem extends Widget implements DTarget {
 	}
     }
 
-    private List<ItemInfo> info() {return(item.info());}
-    public final AttrCache<Pipe.Op> rstate = new AttrCache<>(this::info, info -> {
-	    ArrayList<GItem.RStateInfo> ols = new ArrayList<>();
-	    for(ItemInfo inf : info) {
-		if(inf instanceof GItem.RStateInfo)
-		    ols.add((GItem.RStateInfo)inf);
-	    }
-	    if(ols.size() == 0)
-		return(() -> null);
-	    if(ols.size() == 1) {
-		Pipe.Op op = ols.get(0).rstate();
-		return(() -> op);
-	    }
-	    Pipe.Op[] ops = new Pipe.Op[ols.size()];
-	    for(int i = 0; i < ops.length; i++)
-		ops[i] = ols.get(0).rstate();
-	    Pipe.Op cmp = Pipe.Op.compose(ops);
-	    return(() -> cmp);
-	});
+    public List<ItemInfo> info() {return(item.info());}
+    public final AttrCache<Pipe.Op> rstate = new AttrCache<>(this::info, GItem.RStateInfo.combine);
     public AttrCache<GItem.InfoOverlay<?>[]> itemols = new AttrCache<>(this::info, info -> {
 	    ArrayList<GItem.InfoOverlay<?>> buf = new ArrayList<>();
 	    for(ItemInfo inf : info) {
@@ -218,8 +201,8 @@ public class WItem extends Widget implements DTarget {
 		g.usestate(rstate.get());
 		String searchKeyword = InventorySearchWindow.inventorySearchString;
 		if (searchKeyword.length() > 1) {
-			if (InventorySearchMatcher.matchesItemOrStack(item, searchKeyword)) {
-				int fps = GLPanel.Loop.fps > 0 ? GLPanel.Loop.fps : 1;
+			if (Fuzzy.fuzzyContains(itemName, searchKeyword)) {
+				int fps = UILoop.fps > 0 ? UILoop.fps : 1;
 				int colorShiftSpeed = 800/fps;
 				if (searchItemColorShiftUp) {
 					if (searchItemColorValue + colorShiftSpeed <= 255) {
@@ -286,41 +269,7 @@ public class WItem extends Widget implements DTarget {
     }
 
     public boolean mousedown(MouseDownEvent ev) {
-	boolean inv = parent instanceof Inventory;
-
-	// Ctrl+Shift+Middle-Click to open wiki page
-	if(ev.b == 2 && ui.modctrl && ui.modshift) {
-	    try {
-		String itemName = item.getname();
-		if(itemName != null && !itemName.isEmpty()) {
-		    // Clean up item name for wiki URL
-		    String cleanName = itemName;
-
-		    // Remove ", stack of" suffix
-		    if(cleanName.endsWith(", stack of")) {
-			cleanName = cleanName.substring(0, cleanName.length() - 10);
-		    }
-
-		    // Remove "X seeds of " prefix (e.g., "50 seeds of Wild Flower" -> "Wild Flower")
-		    if(cleanName.matches("^\\d+\\s+seeds?\\s+of\\s+.*")) {
-			cleanName = cleanName.replaceFirst("^\\d+\\s+seeds?\\s+of\\s+", "");
-		    }
-
-		    // Replace spaces with underscores for wiki URL
-		    String wikiPageName = cleanName.replace(" ", "_");
-		    String wikiUrl = "https://ringofbrodgar.com/wiki/" + wikiPageName;
-		    WebBrowser.sshow(new java.net.URL(wikiUrl));
-		}
-		return(true);
-	    } catch(WebBrowser.BrowserException e) {
-		// Could not launch browser - silently ignore
-	    } catch(java.net.MalformedURLException e) {
-		// Invalid URL - silently ignore
-	    } catch(Loading e) {
-		// Item still loading - silently ignore
-	    }
-	}
-
+	boolean inv = Inventory.fromWidget(parent) != null;
 	if(ev.b == 1) {
 		if (OptWnd.useImprovedInventoryTransferControlsCheckBox.a && ui.modmeta && !ui.modctrl) {
 			if (inv) {

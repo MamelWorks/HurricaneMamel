@@ -106,6 +106,14 @@ public class Inventory extends Widget implements DTarget {
 	super(sqsz.mul(sz).add(1, 1));
 	isz = sz;
     }
+
+    public static Inventory fromWidget(Widget w) {
+	if(w instanceof Inventory)
+	    return((Inventory)w);
+	if(w instanceof ExtInventory)
+	    return(((ExtInventory)w).inv);
+	return(null);
+    }
     
     public boolean mousewheel(MouseWheelEvent ev) {
 	if(ui.modshift) {
@@ -256,7 +264,10 @@ public class Inventory extends Widget implements DTarget {
 	@Override
 	public void wdgmsg(Widget sender, String msg, Object... args) {
 		if(msg.equals("transfer-ordered")){
-			processTransfer(getSame((GItem) args[0], (Boolean) args[1]));
+            try {
+                processTransfer(getSame((GItem) args[0], (Boolean) args[1]));
+            } catch (RuntimeException ignored) {
+            }
 		} else {
 			super.wdgmsg(sender, msg, args);
 		}
@@ -271,8 +282,8 @@ public class Inventory extends Widget implements DTarget {
 		List<Inventory> inventories = ui.gui.getAllWindows()
 				.stream()
 				.flatMap(w -> w.children().stream())
-				.filter(child -> child instanceof Inventory)
-				.map(i -> (Inventory) i)
+				.map(Inventory::fromWidget)
+				.filter(Objects::nonNull)
 				.collect(Collectors.toList());
 
 		List<Integer> externalInventoryIds = inventories

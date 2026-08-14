@@ -22,6 +22,7 @@ public class AUtils {
         add("gfx/kritter/badger/badger");
         add("gfx/kritter/bat/bat");
         add("gfx/kritter/bear/bear");
+        add("gfx/kritter/bear/polarbear");
         add("gfx/kritter/beaver/beaver");
         add("gfx/kritter/boar/boar");
         add("gfx/kritter/boreworm/boreworm");
@@ -57,6 +58,9 @@ public class AUtils {
         add("gfx/kritter/woodgrouse/woodgrouse-m");
         add("gfx/kritter/garefowl/garefowl");
         add("gfx/kritter/goshawk/goshawk");
+        add("gfx/kritter/narwhal/narwhal");
+        add("gfx/kritter/crane/crane");
+        add("gfx/kritter/woodscorpion/woodscorpion");
 
         add("gfx/kritter/ants/queenant");
         add("gfx/kritter/ants/royalguardant");
