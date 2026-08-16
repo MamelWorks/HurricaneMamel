@@ -1302,6 +1302,74 @@ public class MiniMap extends Widget {
 	}
     }
 
+    /* ND-style custom: auto-mark natural cave entrances/exits (cavein/caveout ridge tiles).
+     * cavein/cavein2 -> minehole icon ("Cave In"), caveout -> mineladder icon ("Cave Out").
+     * Throttled to ~1/s, with proximity dedup so a cluster of ridge tiles yields one marker. */
+    private double lastCaveScan = 0;
+    private static final int caveMergeDist = 18;
+    public void markCaveGobs() {
+	if(!OptWnd.autoMarkCaveEntrancesCheckBox.a)
+	    return;
+	if((ui == null) || (ui.gui == null) || (file == null))
+	    return;
+	double now = Utils.rtime();
+	if(now - lastCaveScan < 1.0)
+	    return;
+	lastCaveScan = now;
+	OCache oc = ui.sess.glob.oc;
+	java.util.List<Object[]> found = new java.util.ArrayList<>();
+	synchronized(oc) {
+	    for(Gob gob : oc) {
+		try {
+		    Resource r = gob.getres();
+		    if(r == null)
+			continue;
+		    int type = 0;
+		    if(r.name.equals("gfx/tiles/ridges/cavein") || r.name.equals("gfx/tiles/ridges/cavein2"))
+			type = 1;
+		    else if(r.name.equals("gfx/tiles/ridges/caveout"))
+			type = 2;
+		    if(type == 0)
+			continue;
+		    found.add(new Object[]{gob.rc.floor(tilesz), type});
+		} catch(Loading l) {
+		}
+	    }
+	}
+	for(Object[] f : found)
+	    addCaveMarker(ui.sess.glob.map, (Coord)f[0], (Integer)f[1]);
+    }
+
+    private void addCaveMarker(MCache map, Coord tc, int type) {
+	String iconName = (type == 1) ? "customclient/mapicons/minehole" : "customclient/mapicons/mineladder";
+	String nm = (type == 1) ? "Cave In" : "Cave Out";
+	MCache.Grid obg;
+	try {
+	    obg = map.getgrid(tc.div(cmaps));
+	} catch(Loading l) {
+	    return;
+	}
+	if(!file.lock.writeLock().tryLock())
+	    return;
+	try {
+	    MapFile.GridInfo info = file.gridinfo.get(obg.id);
+	    if(info == null)
+		return;
+	    Coord sc = tc.add(info.sc.sub(obg.gc).mul(cmaps));
+	    for(Marker mk : file.markers) {
+		if(!(mk instanceof SMarker))
+		    continue;
+		SMarker sm = (SMarker)mk;
+		if((sm.seg == info.seg) && sm.res.name.equals(iconName) && (sm.tc.dist(sc) < caveMergeDist))
+		    return;
+	    }
+	    SMarker mid = new SMarker(file, info.seg, sc, nm, UID.nil, new Resource.Saved(Resource.remote(), iconName, -1), new byte[0]);
+	    file.add(mid);
+	} finally {
+	    file.lock.writeLock().unlock();
+	}
+    }
+
     public boolean filter(DisplayIcon icon) {
 	MarkerID iattr = icon.gob.getattr(MarkerID.class);
 	if((iattr != null) && (findmarker(iattr.mark) != null))
@@ -1463,12 +1531,16 @@ public class MiniMap extends Widget {
             }
             if (objtip != null) {
                 if (lasttip == null || lastobjid != objid) {
+                    if(lasttip != null) lasttip.dispose();
                     lasttip = new TexI(ItemInfo.catimgs(0, objtip.get()));
                     lastobjid = objid;
                 }
                 return(lasttip);
-            } else
+            } else {
+                if(lasttip != null) lasttip.dispose();
                 lasttip = null;
+                lastobjid = null;
+            }
         }
 	return(super.tooltip(c, prev));
     }

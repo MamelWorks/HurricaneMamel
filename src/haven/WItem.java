@@ -271,6 +271,35 @@ public class WItem extends Widget implements DTarget {
 
     public boolean mousedown(MouseDownEvent ev) {
 	boolean inv = Inventory.fromWidget(parent) != null;
+
+	// Ctrl+Shift+Middle-Click to open the item's wiki page on ringofbrodgar
+	if(ev.b == 2 && ui.modctrl && ui.modshift) {
+		try {
+			String itemName = item.getname();
+			if(itemName != null && !itemName.isEmpty()) {
+				String cleanName = itemName;
+				// Remove ", stack of" suffix
+				if(cleanName.endsWith(", stack of")) {
+					cleanName = cleanName.substring(0, cleanName.length() - 10);
+				}
+				// Remove "X seeds of " prefix (e.g., "50 seeds of Wild Flower" -> "Wild Flower")
+				if(cleanName.matches("^\\d+\\s+seeds?\\s+of\\s+.*")) {
+					cleanName = cleanName.replaceFirst("^\\d+\\s+seeds?\\s+of\\s+", "");
+				}
+				String wikiPageName = cleanName.replace(" ", "_");
+				String wikiUrl = "https://ringofbrodgar.com/wiki/" + wikiPageName;
+				ui.wnd.toolkit().browse(new java.net.URI(wikiUrl));
+			}
+			return(true);
+		} catch(java.io.IOException e) {
+			// Could not launch browser - silently ignore
+		} catch(java.net.URISyntaxException e) {
+			// Invalid URL - silently ignore
+		} catch(Loading e) {
+			// Item still loading - silently ignore
+		}
+	}
+
 	if(ev.b == 1) {
 		if (OptWnd.useImprovedInventoryTransferControlsCheckBox.a && ui.modmeta && !ui.modctrl) {
 			if (inv) {

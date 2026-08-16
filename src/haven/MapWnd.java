@@ -561,6 +561,7 @@ public class MapWnd extends Window implements Console.Directory {
 	    }
 	}
 	view.markobjs();
+	view.markCaveGobs();
 	if(visible) {
 	    if(mrefocus != null) {
 		for(Predicate<Marker> filter : Arrays.asList(pmarkers, smarkers)) {

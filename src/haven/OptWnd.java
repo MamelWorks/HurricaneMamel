@@ -752,6 +752,7 @@ public class OptWnd extends Window {
 	public static CheckBox disableMenuGridHotkeysCheckBox;
 	public static CheckBox alwaysOpenBeltOnLoginCheckBox;
 	public static CheckBox showMapMarkerNamesCheckBox;
+	public static CheckBox autoMarkCaveEntrancesCheckBox;
 	public static CheckBox verticalContainerIndicatorsCheckBox;
 	public static boolean expWindowLocationIsTop = Utils.getprefb("expWindowLocationIsTop", true);
 	private static CheckBox showFramerateCheckBox;
@@ -1040,6 +1041,13 @@ public class OptWnd extends Window {
 			}
 		}, rightColumn.pos("bl").adds(0, 2));
 		showMapMarkerNamesCheckBox.tooltip = showMapMarkerNamesTooltip;
+		rightColumn = add(autoMarkCaveEntrancesCheckBox = new CheckBox("Auto-mark Cave Entrances/Exits"){
+			{a = (Utils.getprefb("autoMarkCaveEntrances", true));}
+			public void changed(boolean val) {
+				Utils.setprefb("autoMarkCaveEntrances", val);
+			}
+		}, rightColumn.pos("bl").adds(0, 2));
+		autoMarkCaveEntrancesCheckBox.tooltip = RichText.render("Automatically place a permanent map marker on natural cave entrances (\"Cave In\", minehole icon) and exits (\"Cave Out\", ladder icon) as you explore, similar to how Burrows are auto-marked.", UI.scale(320));
 		rightColumn = add(verticalContainerIndicatorsCheckBox = new CheckBox("Vertical Container Indicators"){
 			{a = (Utils.getprefb("verticalContainerIndicators", true));}
 			public void changed(boolean val) {
@@ -3198,6 +3206,8 @@ public class OptWnd extends Window {
 		y+=UI.scale(12);
 		y = addbtn(cont, "Inventory search", GameUI.kb_searchInventoriesButton, y);
 		y = addbtn(cont, "Object search", GameUI.kb_searchObjectsButton, y);
+		y = addbtnImproved(cont, "Toggle Map Icon (Cursor)", "Hover an object with your cursor and press this to toggle its map icon on/off (the \"Show icon on map\" setting), without opening the Map Icons Settings window." +
+				"\n\n$col[185,185,185]{Works on any object that has a map icon. The minimap updates instantly.}", new Color(0, 200, 255, 255), MapView.kb_toggleicon, y);
 
 		y+=UI.scale(20);
 		y = addbtnImproved(cont, "Click Nearest Object (Cursor)","When this button is pressed, you will instantly click the nearest object to your cursor, selected from below." +

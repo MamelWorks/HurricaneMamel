@@ -2730,12 +2730,70 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
     }
 
     public static final KeyBinding kb_grid = KeyBinding.get("grid", KeyMatch.forchar('G', KeyMatch.C));
+    public static final KeyBinding kb_toggleicon = KeyBinding.get("toggle-map-icon", KeyMatch.forchar('P', 0));
     public boolean globtype(GlobKeyEvent ev) {
 	if(kb_grid.key().match(ev)) {
 	    showgrid(gridlines == null);
 	    return(true);
 	}
+	if(kb_toggleicon.key().match(ev)) {
+	    toggleMapIconUnderCursor();
+	    return(true);
+	}
 	return(super.globtype(ev));
+    }
+
+    // ND-style custom: hover an object and press P to toggle its "Show icon on map" setting
+    // without opening the Map Icons Settings window.
+    private void toggleMapIconUnderCursor() {
+	if(ui == null || ui.gui == null || ui.gui.iconconf == null || currentCursorLocation == null)
+	    return;
+	new Hittest(currentCursorLocation) {
+	    protected void hit(Coord pc, Coord2d mc, ClickData inf) {
+		toggleMapIconForClick(inf);
+	    }
+	    protected void nohit(Coord pc) {
+		ui.gui.error("No object under cursor to toggle.");
+	    }
+	}.run();
+    }
+
+    private void toggleMapIconForClick(ClickData inf) {
+	if(inf == null) {
+	    ui.gui.error("No object under cursor to toggle.");
+	    return;
+	}
+	Gob gob = glob.oc.getgob(Long.valueOf((Integer)inf.clickargs()[1]));
+	if(gob == null) {
+	    ui.gui.error("No object under cursor to toggle.");
+	    return;
+	}
+	try {
+	    GobIcon icon = gob.getattr(GobIcon.class);
+	    if(icon == null) {
+		ui.gui.error("That object has no map icon.");
+		return;
+	    }
+	    GobIcon.Settings conf = ui.gui.iconconf;
+	    GobIcon.Setting set = conf.get(icon.icon());
+	    if(set == null) {
+		ui.gui.error("That object has no map icon setting.");
+		return;
+	    }
+	    String nm = icon.icon().name();
+	    if(Config.mandatoryAlwaysEnabledMapIcons.keySet().stream().anyMatch(nm::equals)) {
+		set.show = true;
+		ui.gui.error(Config.mandatoryAlwaysEnabledMapIcons.get(nm));
+	    } else {
+		set.show = !set.show;
+		ui.msg((set.show ? "Map icon shown: " : "Map icon hidden: ") + nm);
+	    }
+	    conf.dsave();
+	    ui.sess.glob.oc.gobAction(Gob::updateHidingBoxes);
+	    updatePlobHidingBox();
+	} catch(Loading l) {
+	    ui.gui.error("Object still loading, press P again.");
+	}
     }
 
     public Object tooltip(Coord c, Widget prev) {
