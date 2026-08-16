@@ -459,3 +459,102 @@ public class YourScript implements Runnable {
     }
 }
 ```
+
+## Map Icons & Markers System
+
+### Adding a Gob to the Map Icons list (GobIconsCustom)
+
+`src/haven/GobIconsCustom.java` maps a **gob resource name → a custom map icon** resource. Add one line:
+
+```java
+put("gfx/terobjs/map/squirrelcache", "customclient/mapicons/squirrelcache");
+```
+
+This does two things automatically:
+1. `getIcon(Gob)` gives the gob a minimap icon.
+2. `addCustomSettings()` adds it to the **Map Icons Settings** window (shown by default, toggleable).
+
+**CRITICAL caveat:** `Gob.updateCustomIcons()` (Gob.java:1447) only applies the custom icon **if the gob has no native GobIcon** (`getattr(GobIcon.class) == null`). Objects the server already tags with an icon (e.g. cave passages, see below) will **ignore** a GobIconsCustom mapping — you'd have to override the native icon instead.
+
+### Cave passages are GOBS, not tiles
+
+`gfx/tiles/ridges/cavein`, `cavein2`, `caveout` look like tiles by name but are **gobs** with a native GobIcon named "Cave Passage" (confirmed via the extended tooltip: `GAttribs: haven.Drawable, haven.GobIcon`). To detect them, **iterate the gob cache**, never scan `MCache` tiles:
+
+```java
+synchronized (ui.sess.glob.oc) {
+    for (Gob gob : ui.sess.glob.oc) {
+        Resource r = gob.getres();          // may be null / throw Loading
+        if (r != null && r.name.equals("gfx/tiles/ridges/cavein")) { ... }
+    }
+}
+```
+
+### Placing a permanent map marker programmatically (SMarker)
+
+Markers live in `ui.gui.mapfile.file` (a `MapFile`). `SMarker` = resource-icon marker; `PMarker` = colored flag. Pattern (mirrors `MiniMap.markobjs()` / `MapWnd.markobj()`), converting a **tile coord** to a **segment coord**:
+
+```java
+Coord tc = gob.rc.floor(tilesz);                     // world -> tile coord
+MCache.Grid obg = ui.sess.glob.map.getgrid(tc.div(cmaps));
+if (!file.lock.writeLock().tryLock()) return;
+try {
+    MapFile.GridInfo info = file.gridinfo.get(obg.id);
+    if (info == null) return;
+    Coord sc = tc.add(info.sc.sub(obg.gc).mul(cmaps));   // segment coord
+    // proximity dedup: skip if a same-kind marker already exists nearby
+    for (MapFile.Marker mk : file.markers) {
+        if (mk instanceof MapFile.SMarker sm && sm.seg == info.seg
+            && sm.res.name.equals(iconName) && sm.tc.dist(sc) < MERGE_DIST) return;
+    }
+    file.add(new MapFile.SMarker(file, info.seg, sc, "Cave In", UID.nil,
+        new Resource.Saved(Resource.remote(), iconName, -1), new byte[0]));
+} finally { file.lock.writeLock().unlock(); }
+```
+
+- Use `UID.nil` for the oid; dedup by position via `file.smarker(name, seg, sc)` or a proximity loop (cave ridges span several gobs → without dedup you get marker spam).
+- `SMarker` is always reconstructed on reload with `Resource.remote()`. That's fine for **local** `customclient/mapicons/...` icons because **`Resource.remote()`'s parent pool is `Resource.local()`** (Resource.java:888), so local resources resolve through it and markers survive a restart.
+
+### Native gob auto-marking (like Burrows)
+
+`MiniMap.markobjs()` (called each map-window tick) auto-marks gobs whose icon is **markable + default**. Markability comes from the icon resource's `mm/mark` info: `2` = DEFAULT (auto-marked), `1` = NONDEFAULT (markable, off by default → user ticks **"Place permanent marker"** in Map Icons Settings), else UNMARKABLE. This is why Burrows auto-mark but many icons don't.
+
+### Creating a custom map icon (.res format)
+
+Map icons are Haven `.res` files under `res/customclient/mapicons/`. Minimal icon layout:
+
+```
+"Haven Resource 1"        (16 bytes, no null)
+uint16 version = 1
+layer "image"   : 11-byte header  00 00 00 00 00 ff ff 00 00 00 00  (z=0,subz=0,fl=0,id=-1,off=0,0) + PNG bytes (128x128 works)
+layer "tooltip" : the display name as raw bytes (length-delimited, NOT null-terminated), e.g. "Squirrel Cache"
+```
+
+Icons render as `res.flayer(Resource.imgc).img` (scaled down on the minimap). To make an icon **from a screenshot** (e.g. how the object looks in-game): crop it, remove the dark background to transparency (luminance threshold + connected-component denoise to drop scattered specks), fit into 128x128, then pack the PNG into the `.res` with the header above. Full working Python for both the image processing and the `.res` packing was used in git history — grep commits for "squirrelcache".
+
+**Python + Pillow** are available for this at `C:/Users/Mamel/AppData/Local/Programs/Python/Python312/python.exe` (the `python3`/`python` on PATH is a Windows Store stub — don't use it). Install libs with `<that python> -m pip install Pillow`. The **Read tool can display PNG/JPG**, so extract icon images and Read them to preview; use `cmd //c start file.png` to show the user (images from Read are only visible to you, not the user).
+
+## Keybindings
+
+- Define with `KeyBinding.get("id", KeyMatch.forchar('P', 0))` (0 = no modifier). Handle in a widget's `globtype(GlobKeyEvent ev)`: `if (kb.key().match(ev)) { ...; return true; }`. `globtype` fires for hover-style hotkeys (not consumed by focused textboxes).
+- **A KeyBinding does NOT appear in the settings UI automatically.** Add it to `OptWnd`'s `BindingPanel` with `addbtn(cont, "Label", MyClass.kb_x, y)` or `addbtnImproved(cont, "Label", "tooltip", color, kb, y)` under the "Other Custom features" section. The panel is reached via **Options → Advanced Settings → Interface Settings**.
+
+## Misc client APIs learned
+
+- **Gob under cursor**: `new MapView.Hittest(mapview.currentCursorLocation) { protected void hit(Coord pc, Coord2d mc, ClickData inf) { ... } }.run();` — `inf.clickargs()[1]` is the gob id (`Integer`), resolve with `glob.oc.getgob(Long.valueOf(...))`. `currentCursorLocation` is set in `MapView.mousemove` (local widget coords).
+- **Open a URL in a browser**: `ui.wnd.toolkit().browse(new java.net.URI(url))` (throws `IOException`/`URISyntaxException`). The old `WebBrowser` class was **removed** in the toolkit refactor — don't use it.
+- **Messages**: `ui.msg(String)` (single-arg lives on `UI`), `ui.gui.msg(String, Color)`, `ui.gui.error(String)`. There is no `GameUI.msg(String)`.
+- **Mixed indentation**: `MapView.java`, `MiniMap.java`, `OptWnd.java` use loftar's style — **4 spaces for member declarations, TAB for the first statement level, then TAB + 4 spaces per nested level**. Other files (e.g. automation scripts, WItem's search block) use pure TABs. Always `sed -n 'X,Yp' file | cat -A` to confirm before editing these three.
+
+## Resource loading paths
+
+- The running client uses `Client.gameDir` (`""` when standalone) so `Resource.local()` reads `res/` relative to the working dir = **`bin/res/`**. `customclient/` icons are loose files there (not in a jar).
+- The `bin` ant target **copies the whole project `res/` → `bin/res/`** (build.xml ~line 212), so a new file under `res/customclient/mapicons/` is bundled on the next `./Build.bat` (full build, not `jar`).
+- `builtin-res.jar` / `hafen-res.jar` are **downloaded** from `${ext-lib-base}` = `http://www.havenandhearth.com/java` (the original H&H server — upstream's upstream), gated by `has-res-jar` (true if `bin/builtin-res.jar` exists).
+
+## Upstream merge – hard-won gotchas
+
+- **Always clean-build after a merge** (`./Build.bat clean` then `./Build.bat`). A plain incremental build keeps a **stale `bin/builtin-res.jar`**; new upstream code that references a newly-added resource (e.g. `gfx/hud/buffs/cframe-m`, loaded by `Buff.<clinit>` → `Fightsess.<clinit>`) then throws `NoSuchResourceException` → `ExceptionInInitializerError` → **black screen after login**. Clean build re-downloads the current res jars.
+- **Resolving with `-X theirs` drops the Discord jars from `build.xml`'s manifest Class-Path** (upstream has no Discord). The surviving custom Discord code then throws `NoClassDefFoundError: com/jagrosh/discordipc/...` at runtime (client launches with `-jar`, so only the manifest Class-Path counts). Re-add `DiscordIPC.jar json.jar slf4j-api.jar slf4j-simple.jar junixsocket-common.jar junixsocket-native-common.jar` after `steamworks4j.jar`.
+- After `-X theirs`, custom code in **non-conflicting** files may reference symbols that were dropped from **conflicting** hunks (e.g. `OptWnd.cursorSizeSlider`, `MainFrame.runningThroughDiscord`, old `InventorySorter` constructor). Build, then fix each dangling reference.
+- **Diagnosing runtime errors**: `Play.bat` uses `javaw` (no console) so stderr is lost. Relaunch `bin/hafen.jar` with `java.exe` (console) redirecting `> log 2>&1` to capture exceptions.
+- **Ask before killing a running client** during a live play session (do not `taskkill` java without confirming).
