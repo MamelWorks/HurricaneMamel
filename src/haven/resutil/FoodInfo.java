@@ -177,6 +177,8 @@ public class FoodInfo extends ItemInfo.Tip {
 		efi = catimgsh(5, efi, RichText.render(String.format("$i{($col[192,192,255]{%d%%} chance)}", (int)Math.round(efs[i].p * 100)), 0).img);
 	    imgs.add(efi);
 	}
+		boolean showFepDetails = (OptWnd.hideFepDetailsCheckBox == null) || !OptWnd.hideFepDetailsCheckBox.a;
+		if(showFepDetails) {
 		imgs.add(RichText.render(String.format("\n(+2 Weighted) Total FEPs: $col[0,180,0]{%s}", Utils.odformat2(calculateEfficiency ? (sev * (fepEfficiency/100)) : sev, 2)), 0).img);
 		if (glut > 0) {
 			imgs.add(RichText.render(String.format("(+2 Weighted) FEPs/Hunger: $col[0,180,0]{%s}", Utils.odformat2(calculateEfficiency ? sev * (fepEfficiency / 100) / (glut * 1000 * (hungerEfficiency / 100)) : sev / (glut * 1000), 2)), 0).img);
@@ -216,6 +218,7 @@ public class FoodInfo extends ItemInfo.Tip {
 				imgs.add(RichText.render(String.format("x %s - $col[185,185,185]{Table Food Event Bonus}", Utils.odformat2(tableFoodEventBonus, 2)), 300).img);
 			}
 		}
+		} // ND: end of showFepDetails
 
 	return(catimgs(0, imgs.toArray(new BufferedImage[0])));
     }

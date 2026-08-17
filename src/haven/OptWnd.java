@@ -763,6 +763,7 @@ public class OptWnd extends Window {
 			beltQuickSlotCheckBox, backpackQuickSlotCheckBox, shouldersQuickSlotCheckBox, capeQuickSlotCheckBox;
 	public static CheckBox showStudyReportHistoryCheckBox;
 	public static CheckBox lockStudyReportCheckBox;
+	public static CheckBox hideFepDetailsCheckBox;
 	public static CheckBox soundAlertForFinishedCuriositiesCheckBox;
 	public static CheckBox alwaysShowCombatUIStaminaBarCheckBox;
 	public static CheckBox alwaysShowCombatUIHealthBarCheckBox;
@@ -923,6 +924,14 @@ public class OptWnd extends Window {
 			}
 		}, leftColumn.pos("bl").adds(0, 2));
 		lockStudyReportCheckBox.tooltip = lockStudyReportTooltip;
+		leftColumn = add(hideFepDetailsCheckBox = new CheckBox("Hide Extra FEP Details in Food Tooltips"){
+			{a = (Utils.getprefb("hideFepDetails", true));}
+			public void set(boolean val) {
+				Utils.setprefb("hideFepDetails", val);
+				a = val;
+			}
+		}, leftColumn.pos("bl").adds(0, 2));
+		hideFepDetailsCheckBox.tooltip = RichText.render("Hides the weighted/actual FEP totals, the \"fill your FEP bar to\" line, and the modifier list from food tooltips. The core info (Food Efficiency, Energy, Hunger, Food Event Points and Food Types) stays visible.", UI.scale(300));
 		leftColumn = add(soundAlertForFinishedCuriositiesCheckBox = new CheckBox("Sound Alert for Finished Curiosities"){
 			{a = (Utils.getprefb("soundAlertForFinishedCuriosities", false));}
 			public void set(boolean val) {
