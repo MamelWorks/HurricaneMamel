@@ -128,6 +128,16 @@ public class WItem extends Widget implements DTarget {
 		ttinfo = null;
 	try {
 	    List<ItemInfo> info = item.info();
+	    // ND: For stacks, show the first contained item's info (food values, etc.)
+	    // instead of the generic "To stack items..." help text.
+	    if(item.contents instanceof ItemStack) {
+		ItemStack stack = (ItemStack)item.contents;
+		if(!stack.order.isEmpty()) {
+		    List<ItemInfo> first = stack.order.get(0).info();
+		    if(first != null && first.size() >= 1)
+			info = first;
+		}
+	    }
 	    if(info.size() < 1)
 		return(null);
 	    if(info != ttinfo) {
