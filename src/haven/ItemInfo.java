@@ -654,6 +654,30 @@ public abstract class ItemInfo {
 		}
 		return null;
 	}
+
+	// ND: Craft-input lookup for the Craft Database "from:" filter. Reads the recipe's
+	// "Inputs" ItemInfo (if present) via reflection so we don't hard-depend on the class.
+	public static Map<Resource, Integer> getInputs(List<ItemInfo> infos) {
+		List<ItemInfo> inputInfos = findall("Inputs", infos);
+		Map<Resource, Integer> inputs = new HashMap<>();
+		try {
+			for (ItemInfo islots : inputInfos) {
+				Object[] slots = (Object[]) Reflect.getFieldValue(islots, "inputs");
+				if (slots == null)
+					continue;
+				for (Object slot : slots) {
+					Object spec = Reflect.getFieldValue(slot, "spec");
+					Object res = (spec != null) ? Reflect.invoke(spec, "getres") : null;
+					int num = Reflect.getFieldValueInt(slot, "num");
+					if (res instanceof Resource)
+						inputs.put((Resource) res, num);
+				}
+			}
+		} catch (Exception ignored) {
+		}
+		return inputs;
+	}
+
 	public static int getDamage(List<ItemInfo> infos) {
 		infos = findall("Damage", infos);
 		for (ItemInfo info : infos) {
