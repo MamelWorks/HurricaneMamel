@@ -69,6 +69,17 @@ public class WItem extends Widget implements DTarget {
 		}
 		return searchFilterCompiled;
 	}
+
+	// ND: For stacks, match tag queries against the first contained item's info (the
+	// stack wrapper itself carries no FoodInfo/attrs), so e.g. fep: highlights stacks too.
+	private List<ItemInfo> searchInfo() {
+		if(item.contents instanceof ItemStack) {
+			ItemStack stack = (ItemStack) item.contents;
+			if(!stack.order.isEmpty())
+				return stack.order.get(0).info();
+		}
+		return item.info();
+	}
 	public static final Text.Foundry quantityFoundry = new Text.Foundry(Text.dfont, 10);
 	private static final Color quantityColor = new Color(255, 255, 255, 255);
 	public static final Coord TEXT_PADD_BOT = new Coord(1, 2);
@@ -228,7 +239,7 @@ public class WItem extends Widget implements DTarget {
 			boolean searchMatch;
 			ItemFilter sf = searchFilter(searchKeyword);
 			if (sf != null) {
-				try { searchMatch = sf.matches(item.info()); } catch (Loading l) { searchMatch = false; }
+				try { searchMatch = sf.matches(searchInfo()); } catch (Loading l) { searchMatch = false; }
 			} else {
 				searchMatch = Fuzzy.fuzzyContains(itemName, searchKeyword);
 			}
