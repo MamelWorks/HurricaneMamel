@@ -56,6 +56,19 @@ public class WItem extends Widget implements DTarget {
 	private boolean holdingShift = false;
 	private boolean searchItemColorShiftUp = true;
 	private int searchItemColorValue = 0;
+
+	// ND: Cache the compiled ItemFilter for the current inventory-search query so tag
+	// queries (fep:, attr:, q:, ...) can highlight matching items without recompiling
+	// the regex every frame for every item. null = plain name search (use fuzzy).
+	private static String searchFilterStr = null;
+	private static ItemFilter searchFilterCompiled = null;
+	private static ItemFilter searchFilter(String kw) {
+		if(!kw.equals(searchFilterStr)) {
+			searchFilterStr = kw;
+			searchFilterCompiled = ItemFilter.isTagQuery(kw) ? ItemFilter.create(kw) : null;
+		}
+		return searchFilterCompiled;
+	}
 	public static final Text.Foundry quantityFoundry = new Text.Foundry(Text.dfont, 10);
 	private static final Color quantityColor = new Color(255, 255, 255, 255);
 	public static final Coord TEXT_PADD_BOT = new Coord(1, 2);
@@ -212,7 +225,14 @@ public class WItem extends Widget implements DTarget {
 		String itemName = item.getname().toLowerCase();
 		String searchKeyword = InventorySearchWindow.inventorySearchString.toLowerCase();
 		if (searchKeyword.length() > 1) {
-			if (Fuzzy.fuzzyContains(itemName, searchKeyword)) {
+			boolean searchMatch;
+			ItemFilter sf = searchFilter(searchKeyword);
+			if (sf != null) {
+				try { searchMatch = sf.matches(item.info()); } catch (Loading l) { searchMatch = false; }
+			} else {
+				searchMatch = Fuzzy.fuzzyContains(itemName, searchKeyword);
+			}
+			if (searchMatch) {
 				int fps = UILoop.fps > 0 ? UILoop.fps : 1;
 				int colorShiftSpeed = 800/fps;
 				if (searchItemColorShiftUp) {
