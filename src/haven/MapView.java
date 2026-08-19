@@ -2393,6 +2393,19 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 		Long gobid = Long.valueOf((Integer) inf.clickargs()[1]);
 		Gob gob = glob.oc.getgob(gobid);
 			if(gob != null) {
+				if (clickb == 3 && ui.modctrl && !ui.modmeta && ui.gui != null) {
+					try {
+						Resource gres = gob.getres();
+						if (gres != null && gres.name.startsWith("gfx/terobjs/stockpile")) {
+							if (ui.modshift) {
+								new Thread(new haven.automated.DepositAllToStockpile(ui.gui, gob), "DepositAllToStockpile").start();
+							} else {
+								new Thread(new haven.automated.TakeOneFromStockpile(ui.gui, gob), "TakeOneFromStockpile").start();
+							}
+							return;
+						}
+					} catch (Loading ignored) {}
+				}
 				if (OptWnd.clickThroughContainerDecalCheckBox.a && !ui.modctrl) {
 					try {
 						if ((gob.getres().name.contains("cupboard") || gob.getres().name.contains("chest")) && (int)args[2] == 3) {

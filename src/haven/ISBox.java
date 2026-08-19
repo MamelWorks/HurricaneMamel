@@ -204,6 +204,14 @@ public class ISBox extends Widget implements DTarget {
         }
     }
 
+    // ND: Deposit as many matching items from the inventory as will fit (used by the
+    // Ctrl+Shift+Right-click "deposit all" world shortcut). av-rem is the free space.
+    public void depositAllFromInventory() {
+        int free = av - rem;
+        if (free > 0)
+            transfer(1, free);
+    }
+
     public void transfer(int dir, int amount) {
         for (int i = 0; i < amount; i++) {
             wdgmsg("xfer2", dir, 1); // modflags set to 1 to emulate only SHIFT pressed
