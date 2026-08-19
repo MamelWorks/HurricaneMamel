@@ -3600,6 +3600,8 @@ public class OptWnd extends Window {
 	public static CheckBox useImprovedInventoryTransferControlsCheckBox;
 	public static CheckBox tileCenteringCheckBox;
 	public static CheckBox clickThroughContainerDecalCheckBox;
+	public static CheckBox rightClickProximityCheckBox;
+	public static HSlider rightClickProximityRadiusSlider;
 	public static CheckBox continuousWalkingCheckBox;
 
 	public class AlteredGameplaySettingsPanel extends Panel {
@@ -3697,6 +3699,20 @@ public class OptWnd extends Window {
 					Utils.setprefb("clickThroughContainerDecal", val);
 				}
 			}, prev.pos("bl").adds(0, 12));
+
+			prev = add(rightClickProximityCheckBox = new CheckBox("Right-Click Proximity (snap to nearby object)"){
+				{a = Utils.getprefb("rightClickProximity", false);}
+				public void changed(boolean val) {
+					Utils.setprefb("rightClickProximity", val);
+				}
+			}, prev.pos("bl").adds(0, 12));
+			rightClickProximityCheckBox.tooltip = RichText.render("When a right-click misses every object, click the nearest object within the radius below instead. The object that gets clicked briefly flashes so you can tell what was hit.", UI.scale(320));
+			prev = add(new Label("Right-Click Proximity Radius:"), prev.pos("bl").adds(0, 6));
+			prev = add(rightClickProximityRadiusSlider = new HSlider(UI.scale(200), 0, 40, Utils.getprefi("rightClickProximityRadius", 10)) {
+				public void changed() {
+					Utils.setprefi("rightClickProximityRadius", val);
+				}
+			}, prev.pos("bl").adds(0, 4));
 
 			prev = add(continuousWalkingCheckBox = new CheckBox("Continuous Walking when holding down Left Click"){
 				{a = Utils.getprefb("continuousWalking", false);}

@@ -2466,6 +2466,15 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 				}
 			}
 		} else { // ND: This means no object was clicked. We clicked the ground.
+			if (clickb == 3 && OptWnd.rightClickProximityCheckBox.a && !ui.modmeta && !ui.modctrl && !ui.modshift
+					&& ui.gui != null && ui.gui.vhand == null) {
+				Gob target = findNearestClickableGob(mc, OptWnd.rightClickProximityRadiusSlider.val);
+				if (target != null) {
+					flashGob(target);
+					wdgmsg("click", pc, target.rc.floor(posres), 3, modflags, 0, (int) target.id, target.rc.floor(posres), 0, -1);
+					return;
+				}
+			}
 			if (clickb == 1 && ui.modmeta && ui.gui.vhand == null) {
 				addCheckpoint(mc);
 			} else if (clickb == 1) { // Left Click
@@ -2717,6 +2726,69 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 	return(camera.wheel(ev));
     }
     
+    // ND: Right-click proximity: find the nearest clickable gob within `radius` (world units)
+    // of the clicked world coord, so a near-miss right-click still hits the intended object.
+    private Gob findNearestClickableGob(Coord2d mc, double radius) {
+	Gob nearest = null;
+	double nd = Double.MAX_VALUE;
+	synchronized(glob.oc) {
+	    for(Gob gob : glob.oc) {
+		try {
+		    if(gob.id == plgob)
+			continue;
+		    Resource res = gob.getres();
+		    if(res == null)
+			continue;
+		    double d = effectiveClickDist(gob, res.name, mc);
+		    if(d <= radius && d < nd) {
+			nd = d;
+			nearest = gob;
+		    }
+		} catch(Loading l) {
+		}
+	    }
+	}
+	return nearest;
+    }
+
+    // Distance from the click point to the gob's hitbox edge (0 when inside the box).
+    // Falls back to the gob's center (rc) when we have no hitbox data for it (e.g. many
+    // forageables have no collision box), so proximity still works on those.
+    private double effectiveClickDist(Gob gob, String resName, Coord2d mc) {
+	haven.automated.helpers.HitBoxes.CollisionBoxSecondary[] boxes = haven.automated.helpers.HitBoxes.collisionBoxMap.get(resName);
+	if(boxes == null || boxes.length == 0)
+	    return gob.rc.dist(mc);
+	Coordf rel = new Coordf(mc.floor().sub(gob.rc.floor())).rotate(-gob.a);
+	double best = Double.MAX_VALUE;
+	boolean any = false;
+	for(haven.automated.helpers.HitBoxes.CollisionBoxSecondary box : boxes) {
+	    if(!box.hitAble || box.coords == null || box.coords.length < 3)
+		continue;
+	    any = true;
+	    double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE, maxX = -Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+	    for(Coord2d c : box.coords) {
+		minX = Math.min(minX, c.x); minY = Math.min(minY, c.y);
+		maxX = Math.max(maxX, c.x); maxY = Math.max(maxY, c.y);
+	    }
+	    double dx = Math.max(Math.max(minX - rel.x, rel.x - maxX), 0);
+	    double dy = Math.max(Math.max(minY - rel.y, rel.y - maxY), 0);
+	    best = Math.min(best, Math.sqrt(dx * dx + dy * dy));
+	}
+	if(!any)
+	    return gob.rc.dist(mc);
+	return best;
+    }
+
+    private void flashGob(final Gob gob) {
+	if(gob.getattr(GobClickFlash.class) != null)
+	    return;
+	gob.setattr(new GobClickFlash(gob));
+	new Thread(() -> {
+		try { Thread.sleep(220); } catch(InterruptedException e) {}
+		try { gob.delattr(GobClickFlash.class); } catch(Exception ignored) {}
+	    }, "GobClickFlash").start();
+    }
+
     public boolean drop(final Coord cc, Coord ul) {
 	new Hittest(cc) {
 	    public void hit(Coord pc, Coord2d mc, ClickData inf) {
