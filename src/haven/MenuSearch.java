@@ -154,7 +154,26 @@ public abstract class MenuSearch extends Window {
     }
 
     protected void refilter() {
-	List<Result> found = Fuzzy.fuzzyFilterAndSort(sbox.text().toLowerCase(), this.cur);
+	String q = sbox.text().toLowerCase().trim();
+	List<Result> found;
+	if(!q.isEmpty() && ItemFilter.isTagQuery(q)) {
+	    // ND: tag queries (fep:str>10, attr:agi>2, q:min<12, ...) match against each
+	    // recipe/action's item info instead of its name.
+	    ItemFilter filter = ItemFilter.create(q);
+	    found = new ArrayList<>();
+	    for(Result r : this.cur) {
+		try {
+		    List<ItemInfo> info = r.btn.info();
+		    if(info != null && filter.matches(info))
+			found.add(r);
+		} catch(Loading l) {
+		} catch(Exception ignored) {
+		}
+	    }
+	    found.sort(Comparator.comparing(r -> r.btn.name()));
+	} else {
+	    found = Fuzzy.fuzzyFilterAndSort(q, this.cur);
+	}
 	this.filtered = found;
 	int idx = filtered.indexOf(rls.sel);
 	if(idx < 0) {
@@ -243,8 +262,11 @@ public abstract class MenuSearch extends Window {
 	public Main(MenuGrid menu) {
 	    super(menu);
 	    setroot(null);
-	    add(new Button(sbox.sz.x, "Search by ingredient", false).action(() -> menu.wdgmsg("act", "itemcraft")),
-		sbox.pos("bl").adds(0, 5)).setgkey(kb_itemcraft);
+	    Button ing = add(new Button(sbox.sz.x, "Search by ingredient", false).action(() -> menu.wdgmsg("act", "itemcraft")),
+		sbox.pos("bl").adds(0, 5));
+	    ing.setgkey(kb_itemcraft);
+	    add(new Button(sbox.sz.x, "Filter Help (search tags)", false).action(() -> ItemFilter.showHelp(ui, ItemFilter.FILTER_HELP)),
+		ing.pos("bl").adds(0, 5));
 	    pagseq = menu.pagseq;
 	    pack();
 	}

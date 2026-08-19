@@ -66,7 +66,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     private Text lastmsg;
     private double msgtime;
     private Window invwnd, equwnd, /*makewnd,*/ srchwnd, iconwnd;
-    public CraftDBWnd craftdbwnd;
 	public CraftWindow makewnd;
 	public Inventory maininv;
 	public ExtInventory maininvext;
@@ -1889,29 +1888,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public static KeyBinding kb_leaderTarget = KeyBinding.get("leaderTarget", KeyMatch.nil);
     public static KeyBinding kb_blt = KeyBinding.get("blt", KeyMatch.forchar('R', KeyMatch.M));
 
-    public void toggleCraftDB() {
-	if(menu == null)
-	    return;
-	if(craftdbwnd == null) {
-	    craftdbwnd = new CraftDBWnd(menu) {
-		    public void wdgmsg(String msg, Object... args) {
-			if(msg.equals("close")) {
-			    Utils.setprefc("wndc-craftdb", this.c);
-			    ui.destroy(this);
-			    craftdbwnd = null;
-			    return;
-			}
-			super.wdgmsg(msg, args);
-		    }
-		};
-	    fitwdg(this.add(craftdbwnd, Utils.getprefc("wndc-craftdb", new Coord(300, 200))));
-	} else {
-	    Utils.setprefc("wndc-craftdb", craftdbwnd.c);
-	    ui.destroy(craftdbwnd);
-	    craftdbwnd = null;
-	}
-    }
-
     public boolean globtype(GlobKeyEvent ev) {
 	if(ev.c == ':') {
 	    entercmd();
@@ -1942,9 +1918,6 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 //	    }
 //	    Utils.setprefb("chatvis", chat.targetshow);
 	    return(true);
-	} else if (CraftDBWnd.kb_craftdb.key().match(ev)) {
-		toggleCraftDB();
-		return (true);
 	} else if (kb_drinkButton.key().match(ev)) {
 		wdgmsg("act", "drink");
 		return (true);

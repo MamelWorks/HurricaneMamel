@@ -3214,10 +3214,6 @@ public class OptWnd extends Window {
 		y+=UI.scale(12);
 		y = addbtn(cont, "Inventory search", GameUI.kb_searchInventoriesButton, y);
 		y = addbtn(cont, "Object search", GameUI.kb_searchObjectsButton, y);
-		y = addbtnImproved(cont, "Craft Database (attribute/FEP search)", "Opens a searchable list of every craftable recipe." +
-				"\n\n$col[185,185,185]{Type a name to fuzzy-search, or use tag queries like:}" +
-				"\n$col[185,185,185]{  fep:str>10   attr:agi>2   q:min<12   armor:hard>3   from:board   has:water>2   lp>100}" +
-				"\n\n$col[185,185,185]{Click the Filter Help button in the window for the full tag list.}", new Color(0, 200, 255, 255), CraftDBWnd.kb_craftdb, y);
 		y = addbtnImproved(cont, "Toggle Map Icon (Cursor)", "Hover an object with your cursor and press this to toggle its map icon on/off (the \"Show icon on map\" setting), without opening the Map Icons Settings window." +
 				"\n\n$col[185,185,185]{Works on any object that has a map icon. The minimap updates instantly.}", new Color(0, 200, 255, 255), MapView.kb_toggleicon, y);
 
