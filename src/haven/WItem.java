@@ -150,6 +150,12 @@ public class WItem extends Widget implements DTarget {
 //	}
 	if (prev != this)
 		ttinfo = null;
+	// ND: feed the Character Sheet's Food Event Points hover preview (ghost segments).
+	try {
+		haven.resutil.FoodInfo fi = ItemInfo.find(haven.resutil.FoodInfo.class, searchInfo());
+		if (fi != null)
+			BAttrWnd.FoodMeter.setHoverPreview(fi.fepPreview());
+	} catch (Loading ignored) {}
 	try {
 	    List<ItemInfo> info = item.info();
 	    // ND: For stacks, show the first contained item's info (food values, etc.)

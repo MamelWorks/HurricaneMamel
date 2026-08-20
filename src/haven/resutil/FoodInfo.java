@@ -223,6 +223,70 @@ public class FoodInfo extends ItemInfo.Tip {
 	return(catimgs(0, imgs.toArray(new BufferedImage[0])));
     }
 
+	// ND: FEP efficiency (satiation per food type, glut modifier, sub/verified bonus,
+	// table feast bonus) for the Food Event Points hover preview. Mirrors the calculation
+	// in tipimg() -- keep the two in sync.
+	public double fepEfficiency() {
+		double eff = 100;
+		if (ui != null && ui.gui != null && ui.gui.chrwdg != null && ui.gui.chrwdg.battr != null
+				&& ui.gui.chrwdg.battr.cons != null && ui.gui.chrwdg.battr.glut != null) {
+			boolean isSalted = (owner instanceof GItem && ((GItem) owner).isSalted());
+			for (int i = 0; i < ui.gui.chrwdg.battr.cons.els.size(); i++) {
+				BAttrWnd.Constipations.El el = ui.gui.chrwdg.battr.cons.els.get(i);
+				for (int type : types) {
+					if (type == i) {
+						eff *= (1.0 - el.a);
+						break;
+					}
+				}
+				try {
+					if (isSalted && el.t.res.get().basename().equals("salt"))
+						eff *= (1.0 - el.a);
+				} catch (Loading ignored) {}
+			}
+			eff *= ui.gui.chrwdg.battr.glut.gmod;
+			if (GameUI.subscribedAccount && GameUI.verifiedAccount) eff *= 1.5;
+			else if (GameUI.subscribedAccount) eff *= 1.3;
+			else if (GameUI.verifiedAccount) eff *= 1.2;
+			Window feast = null;
+			outer:
+			for (Window wnd : ui.gui.getAllWindows()) {
+				if (wnd.cap != null && wnd.cap.equals("Table")) {
+					for (Widget wdg : wnd.children()) {
+						if (wdg instanceof Button) {
+							feast = wnd;
+							break outer;
+						}
+					}
+				}
+			}
+			if (feast != null) {
+				for (Widget wdg : feast.children()) {
+					if (wdg instanceof Label) {
+						String s = ((Label) wdg).texts;
+						if (s != null && s.startsWith("Food event bonus")) {
+							double b = extractNumber(s);
+							eff *= (b > 0.0) ? 1.0 + (b / 100) : 1.0;
+						}
+					}
+				}
+			}
+		}
+		return eff;
+	}
+
+	// Per-category effective FEP segments (color + amount) for the hover preview.
+	public java.util.List<BAttrWnd.FoodMeter.PreviewSeg> fepPreview() {
+		double eff = fepEfficiency() / 100.0;
+		java.util.List<BAttrWnd.FoodMeter.PreviewSeg> out = new java.util.ArrayList<>();
+		for (Event ev : evs) {
+			try {
+				out.add(new BAttrWnd.FoodMeter.PreviewSeg(ev.ev.col, ev.a * eff));
+			} catch (Exception ignored) {}
+		}
+		return out;
+	}
+
 	private static double extractNumber(String str) {
 		Pattern pattern = Pattern.compile("\\d+");
 		Matcher matcher = pattern.matcher(str);

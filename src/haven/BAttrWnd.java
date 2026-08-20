@@ -283,6 +283,21 @@ public class BAttrWnd extends Widget {
 	private Tex trol;
 	private double trtm = 0;
 
+	// ND: hovered-food FEP preview. WItem.tooltip() feeds per-category segments here
+	// (color + effective FEP); draw() renders them as ghost segments after the current
+	// fill. Freshness-gated so it clears when the cursor leaves the food.
+	public static class PreviewSeg {
+	    public final Color col;
+	    public final double fep;
+	    public PreviewSeg(Color col, double fep) {this.col = col; this.fep = fep;}
+	}
+	public static volatile List<PreviewSeg> hoverPreview = null;
+	public static volatile double hoverPreviewTime = 0;
+	public static void setHoverPreview(List<PreviewSeg> segs) {
+	    hoverPreview = segs;
+	    hoverPreviewTime = Utils.rtime();
+	}
+
 	@Resource.LayerName("foodev")
 	public static class Event extends Resource.Layer {
 	    public final Color col;
@@ -363,6 +378,30 @@ public class BAttrWnd extends Widget {
 	    }
 	}
 
+	private void drawFepPreview(GOut g) {
+	    List<PreviewSeg> pv = hoverPreview;
+	    if(pv == null || pv.isEmpty() || cap <= 0)
+		return;
+	    if(Utils.rtime() - hoverPreviewTime > 0.2)
+		return;
+	    double x = 0;
+	    for(El el : els)
+		x += el.a;
+	    int w = sz.x - (marg.x * 2);
+	    for(PreviewSeg s : pv) {
+		int l = (int)Math.floor((x / cap) * w);
+		int r = (int)Math.floor(((x += s.fep) / cap) * w);
+		int cl = Math.max(0, Math.min(w, l));
+		int cr = Math.max(0, Math.min(w, r));
+		if(cr <= cl)
+		    continue;
+		Color c = s.col;
+		g.chcolor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 120));
+		g.frect(new Coord(marg.x + cl, marg.y), new Coord(cr - cl, sz.y - (marg.y * 2)));
+	    }
+	    g.chcolor();
+	}
+
 	public void tick(double dt) {
 	    if(enew != null) {
 		try {
@@ -391,6 +430,7 @@ public class BAttrWnd extends Widget {
 	    drawels(g, els, 255);
 	    if(d < 1.0)
 		drawels(g, etr, (int)(255 - (d * 255)));
+	    drawFepPreview(g);
 	    g.chcolor();
 	    g.image(frame, Coord.z);
 	    if(d < 2.5) {
