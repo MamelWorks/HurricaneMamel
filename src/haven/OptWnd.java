@@ -752,6 +752,7 @@ public class OptWnd extends Window {
 	public static CheckBox disableMenuGridHotkeysCheckBox;
 	public static CheckBox alwaysOpenBeltOnLoginCheckBox;
 	public static CheckBox showMapMarkerNamesCheckBox;
+	public static CheckBox renameMapMarkersOnPlacementCheckBox;
 	public static CheckBox verticalContainerIndicatorsCheckBox;
 	public static boolean expWindowLocationIsTop = Utils.getprefb("expWindowLocationIsTop", true);
 	private static CheckBox showFramerateCheckBox;
@@ -833,7 +834,7 @@ public class OptWnd extends Window {
 			public void changed(boolean val) {
 				Utils.setprefb("showHoverInventoriesWhenHoldingShift", val);
 			}
-		}, leftColumn.pos("bl").adds(0, 12));
+		}, leftColumn.pos("bl").adds(0, 22));
 		leftColumn = add(showQuickSlotsCheckBox = new CheckBox("Enable Quick Slots Widget:"){
 			{a = (Utils.getprefb("showQuickSlotsBar", true));}
 			public void changed(boolean val) {
@@ -1040,6 +1041,13 @@ public class OptWnd extends Window {
 			}
 		}, rightColumn.pos("bl").adds(0, 2));
 		showMapMarkerNamesCheckBox.tooltip = showMapMarkerNamesTooltip;
+		rightColumn = add(renameMapMarkersOnPlacementCheckBox = new CheckBox("Rename New Markers in Compact Map"){
+			{a = (Utils.getprefb("renameMapMarkersOnPlacement", false));}
+			public void changed(boolean val) {
+				Utils.setprefb("renameMapMarkersOnPlacement", val);
+			}
+		}, rightColumn.pos("bl").adds(0, 2));
+		renameMapMarkersOnPlacementCheckBox.tooltip = renameMapMarkersOnPlacementTooltip;
 		rightColumn = add(verticalContainerIndicatorsCheckBox = new CheckBox("Vertical Container Indicators"){
 			{a = (Utils.getprefb("verticalContainerIndicators", true));}
 			public void changed(boolean val) {
@@ -5288,6 +5296,7 @@ public class OptWnd extends Window {
 			"\n" +
 			"\n$col[185,185,185]{By default, Loftar saves the status of the belt at logout. So if you don't enable this setting, but leave the belt window open when you log out/exit the game, it will still open on login.}", UI.scale(300));
 	private static final Object showMapMarkerNamesTooltip = RichText.render("$col[185,185,185]{The marker names are NOT visible in compact mode.}", UI.scale(320));
+	private static final Object renameMapMarkersOnPlacementTooltip = RichText.render("Opens a rename window after manually placing a map marker in compact mode.", UI.scale(320));
 	private static final Object verticalContainerIndicatorsTooltip = RichText.render("Orientation for inventory container indicators." +
 			"\n" +
 			"\n$col[185,185,185]{For example, the amount of water in waterskins, seeds in a bucket, etc.}", UI.scale(230));
