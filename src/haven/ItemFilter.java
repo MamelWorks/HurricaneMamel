@@ -532,7 +532,7 @@ public class ItemFilter {
 
         @Override
         protected boolean match(ItemInfo item) {
-            if (Reflect.is(item, "Gast")) {
+            if (Reflect.is(item, "haven.res.ui.tt.gast.Gast")) {
                 if (text.isEmpty()) {
                     return true;
                 }
