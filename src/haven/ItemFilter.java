@@ -46,7 +46,8 @@ public class ItemFilter {
             "$font[monospaced,13]{  q:ess+21 }will find items with essence of at least 21\n";
 
     public static final String HELP_CURIO = "$size[20]{$b{Curiosity search}}\n" +
-            "Supports $font[monospaced,13]{lp} (learning point gained), $font[monospaced,13]{xp} (experience required) and $font[monospaced,13]{mw} (mental weight required) tags.\n" +
+            "Supports $font[monospaced,13]{lp} (learning points), $font[monospaced,13]{xp} (experience required), $font[monospaced,13]{mw} (mental weight) and $font[monospaced,13]{lphw} (LP per hour per weight) tags.\n" +
+            "$font[monospaced,13]{lp:} and $font[monospaced,13]{lphw:} also sort the results (highest first).\n" +
             "$size[16]{\nExamples:}\n" +
             "$font[monospaced,13]{  lp:    }will find items that grant LP.\n" +
             "$font[monospaced,13]{  lp>100 }will find items that grant more than 100 LP.\n" +
@@ -95,7 +96,8 @@ public class ItemFilter {
             "$size[16]{\nExamples:}\n" +
             "$font[monospaced,13]{  attr:survival }will find all items that grant survival.\n" +
             "$font[monospaced,13]{  attr:str>2    }will find items granting more than 2 str bonus.\n" +
-            "$font[monospaced,13]{  attr:agi<0    }will find items giving agility penalty.\n";
+            "$font[monospaced,13]{  attr:agi<0    }will find items giving agility penalty.\n" +
+            "$font[monospaced,13]{attr:} with a type also sorts the results (highest bonus first).\n";
 
     public static final String HELP_INPUT = "$size[20]{$b{Craft input search}}\n" +
             "$font[monospaced,16]{from:[type][sign][value]}\n" +
@@ -117,6 +119,16 @@ public class ItemFilter {
 
     protected boolean match(ItemInfo item) {
         return false;
+    }
+
+    // ND: When a filter is "sortable" (currently fep:), search results can be ordered by
+    // sortValue() descending instead of alphabetically. Higher = listed first.
+    public boolean sortable() {
+        return false;
+    }
+
+    public double sortValue(List<ItemInfo> info) {
+        return Double.NEGATIVE_INFINITY;
     }
 
     private static double round(double v, int places) {
@@ -161,6 +173,7 @@ public class ItemFilter {
                     case "xp":
                     case "lp":
                     case "mw":
+                    case "lphw":
                         tag = text;
                         break;
                     case "q":
@@ -185,6 +198,7 @@ public class ItemFilter {
                     case "xp":
                     case "lp":
                     case "mw":
+                    case "lphw":
                         filter = new XP(tag, sign, value, opt);
                         break;
                     case "energy":
@@ -260,6 +274,23 @@ public class ItemFilter {
                 }
             }
             return true;
+        }
+
+        @Override
+        public boolean sortable() {
+            for (ItemFilter filter : filters)
+                if (filter.sortable())
+                    return true;
+            return false;
+        }
+
+        @Override
+        public double sortValue(List<ItemInfo> info) {
+            double best = Double.NEGATIVE_INFINITY;
+            for (ItemFilter filter : filters)
+                if (filter.sortable())
+                    best = Math.max(best, filter.sortValue(info));
+            return best;
         }
     }
 
@@ -391,6 +422,8 @@ public class ItemFilter {
                     return test(curio.enc);
                 } else if ("mw".equals(text)) {
                     return test(curio.mw);
+                } else if ("lphw".equals(text)) {
+                    return test(curio.mw > 0 ? (double) curio.lph / curio.mw : 0);
                 }
             }
             return false;
@@ -399,6 +432,26 @@ public class ItemFilter {
         @Override
         protected Sign getDefaultSign() {
             return Sign.GREQUAL;
+        }
+
+        // ND: sort curiosities by learning points (lp:) or LP/H/Weight (lphw:), higher first.
+        @Override
+        public boolean sortable() {
+            return "lp".equals(text) || "lphw".equals(text);
+        }
+
+        @Override
+        public double sortValue(List<ItemInfo> info) {
+            for (ItemInfo item : info) {
+                if (item instanceof Curiosity) {
+                    Curiosity curio = (Curiosity) item;
+                    if ("lp".equals(text))
+                        return curio.exp;
+                    if ("lphw".equals(text))
+                        return (curio.mw > 0) ? (double) curio.lph / curio.mw : 0;
+                }
+            }
+            return Double.NEGATIVE_INFINITY;
         }
     }
 
@@ -472,6 +525,30 @@ public class ItemFilter {
                 }
             }
             return false;
+        }
+
+        // ND: sort by the total FEP for the queried attribute (sum across all matching
+        // events, e.g. Charisma+1 + Charisma+2). With no attribute (fep:) sorts by total FEP.
+        @Override
+        public boolean sortable() {
+            return true;
+        }
+
+        @Override
+        public double sortValue(List<ItemInfo> info) {
+            double sum = 0;
+            boolean any = false;
+            for (ItemInfo item : info) {
+                if (item instanceof FoodInfo) {
+                    for (FoodInfo.Event event : ((FoodInfo) item).evs) {
+                        if (text == null || text.length() < 3 || event.ev.nm.toLowerCase().startsWith(text)) {
+                            sum += event.a;
+                            any = true;
+                        }
+                    }
+                }
+            }
+            return any ? sum : Double.NEGATIVE_INFINITY;
         }
     }
 
@@ -567,6 +644,27 @@ public class ItemFilter {
                 return true;
             }
             return false;
+        }
+
+        // ND: sort by the (summed) bonus for the queried attribute/skill, highest first.
+        @Override
+        public boolean sortable() {
+            return text != null && text.length() >= 3;
+        }
+
+        @Override
+        public double sortValue(List<ItemInfo> info) {
+            Map<haven.res.ui.tt.attrmod.Entry, String> bonuses = ItemInfo.getBonuses(info);
+            double sum = 0;
+            boolean any = false;
+            for (haven.res.ui.tt.attrmod.Entry entry : bonuses.keySet()) {
+                String nm = entry.attr.name();
+                if (nm != null && nm.toLowerCase().startsWith(text) && (entry instanceof Mod)) {
+                    sum += ((Mod) entry).mod;
+                    any = true;
+                }
+            }
+            return any ? sum : Double.NEGATIVE_INFINITY;
         }
     }
 

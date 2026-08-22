@@ -170,7 +170,15 @@ public abstract class MenuSearch extends Window {
 		} catch(Exception ignored) {
 		}
 	    }
-	    found.sort(Comparator.comparing(r -> r.btn.name()));
+	    if(filter.sortable()) {
+		// ND: fep: queries sort by the (summed) FEP value descending, best first.
+		found.sort(Comparator.comparingDouble((Result r) -> {
+		    try { return filter.sortValue(r.btn.info()); }
+		    catch(Exception e) { return Double.NEGATIVE_INFINITY; }
+		}).reversed().thenComparing(r -> r.btn.name()));
+	    } else {
+		found.sort(Comparator.comparing(r -> r.btn.name()));
+	    }
 	} else {
 	    found = Fuzzy.fuzzyFilterAndSort(q, this.cur);
 	}
