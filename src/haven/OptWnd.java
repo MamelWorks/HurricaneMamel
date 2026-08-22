@@ -3316,7 +3316,7 @@ public class OptWnd extends Window {
 	public static CheckBox autoReloadCuriositiesFromInventoryCheckBox;
 	public static CheckBox preventTablewareFromBreakingCheckBox = null;
 	public static CheckBox autoDropLeechesCheckBox;
-	public static CheckBox autoEquipBunnySlippersPlateBootsCheckBox;
+	public static CheckBox autoSwitchBootsCheckBox;
 	public static CheckBox autoDropTicksCheckBox;
 	public static CheckBox autoPeaceAnimalsWhenCombatStartsCheckBox;
 	public static CheckBox preventUsingRawHideWhenRidingCheckBox;
@@ -3477,16 +3477,16 @@ public class OptWnd extends Window {
 					}
 				}
 			}, prev.pos("bl").adds(0, 2));
-			prev = add(autoEquipBunnySlippersPlateBootsCheckBox = new CheckBox("Auto-Equip Bunny Slippers/Plate Boots"){
-				{a = Utils.getprefb("autoEquipBunnySlippersPlateBoots", true);}
+			prev = add(autoSwitchBootsCheckBox = new CheckBox("Auto-Switch Bunny Slippers/Armor Boots"){
+				{a = Utils.getprefb("autoSwitchBoots", true);}
 				public void set(boolean val) {
-					Utils.setprefb("autoEquipBunnySlippersPlateBoots", val);
-					if (Equipory.autoEquipBunnySlippersPlateBootsCheckBox != null)
-						Equipory.autoEquipBunnySlippersPlateBootsCheckBox.a = val;
+					Utils.setprefb("autoSwitchBoots", val);
+					if (Equipory.autoSwitchBootsCheckBox != null)
+						Equipory.autoSwitchBootsCheckBox.a = val;
 					a = val;
 				}
 			}, prev.pos("bl").adds(0, 2));
-			autoEquipBunnySlippersPlateBootsCheckBox.tooltip = autoEquipBunnySlippersPlateBootsTooltip;
+			autoSwitchBootsCheckBox.tooltip = autoSwitchBootsTooltip;
 			prev = add(new Button(UI.scale(250), "Auto-Drop Manager", false, () -> {
 				if(!autoDropManagerWindow.attached) {
 					this.parent.parent.add(autoDropManagerWindow); // ND: this.parent.parent is root widget in login screen or gui in game.
@@ -5490,7 +5490,7 @@ public class OptWnd extends Window {
 	private static final Object flowerMenuAutoSelectManagerTooltip = RichText.render("An advanced menu to automatically select specific flower menu options all the time. New options are added to the list as you discover them." +
 			"\n" +
 			"\n$col[185,185,185]{I don't recommend using this, but nevertheless it exists due to popular demand.}", UI.scale(300));
-	private static final Object autoEquipBunnySlippersPlateBootsTooltip = RichText.render("Switches your currently equipped shoes to Bunny Slippers when you right click to chase a rabbit, or Plate Boots if you click on anything else." +
+	private static final Object autoSwitchBootsTooltip = RichText.render("Switches your currently equipped shoes to Bunny Slippers when you right click to chase a rabbit, or Plate Boots if you click on anything else." +
 			"\n" +
 			"\n$col[185,185,185]{I suggest always using this setting in PVP.}", UI.scale(300));
 	private static final Object autoPeaceAnimalsWhenCombatStartsTooltip = RichText.render("This will automatically set your status to 'Peace' when combat is initiated with a new target (animals only). " +

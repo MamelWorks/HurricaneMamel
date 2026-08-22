@@ -138,7 +138,7 @@ public class InteractWithNearestObject implements Runnable {
                 }
             } catch (Exception ignored) {}
         } else {
-            if (OptWnd.autoEquipBunnySlippersPlateBootsCheckBox.a) {
+            if (OptWnd.autoSwitchBootsCheckBox.a) {
                 gui.map.switchBunnySlippersAndPlateBoots(theObject);
             }
             gui.map.wdgmsg("click", Coord.z, theObject.rc.floor(posres), 3, 0, 0, (int) theObject.id, theObject.rc.floor(posres), 0, -1);

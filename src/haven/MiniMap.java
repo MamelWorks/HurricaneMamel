@@ -1488,7 +1488,7 @@ public class MiniMap extends Widget {
 					}
 				}
 			}
-			if (OptWnd.autoEquipBunnySlippersPlateBootsCheckBox.a) {
+			if (OptWnd.autoSwitchBootsCheckBox.a) {
 				ui.gui.map.switchToPlateBoots();
 			}
 			if(mv.checkpointManager != null && mv.checkpointManagerThread != null && button == 1){
@@ -1512,7 +1512,7 @@ public class MiniMap extends Widget {
                     ui.gui.map.pfthread.interrupt();
                 }
             }
-			if (OptWnd.autoEquipBunnySlippersPlateBootsCheckBox.a) {
+			if (OptWnd.autoSwitchBootsCheckBox.a) {
 				if (button == 3)
 					ui.gui.map.switchBunnySlippersAndPlateBoots(gob);
 				if (button == 1)

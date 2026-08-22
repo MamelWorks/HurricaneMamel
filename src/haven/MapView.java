@@ -2420,12 +2420,12 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 					}
 				}
 				if (clickb == 1) { // Left Click
-					if (OptWnd.autoEquipBunnySlippersPlateBootsCheckBox.a) {
+					if (OptWnd.autoSwitchBootsCheckBox.a) {
 						switchToPlateBoots();
 					}
 				}
 				if (clickb == 3) { // Right Click
-					if (OptWnd.autoEquipBunnySlippersPlateBootsCheckBox.a) {
+					if (OptWnd.autoSwitchBootsCheckBox.a) {
 						switchBunnySlippersAndPlateBoots(gob);
 					}
 					if(checkpointManager != null && checkpointManagerThread != null){
@@ -2452,7 +2452,7 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 			} else if (clickb == 1) { // Left Click
 				if (ui.gui.fv != null)
 					ui.gui.fv.currentChanged = false;
-				if (OptWnd.autoEquipBunnySlippersPlateBootsCheckBox.a) {
+				if (OptWnd.autoSwitchBootsCheckBox.a) {
 					switchToPlateBoots();
 				}
 			}
