@@ -38,10 +38,22 @@ public class AlarmManager {
 		return false;
 	}
 
+	// ND: keep the user alarm config OUT of bin/ so a clean rebuild (which wipes bin/) can't
+	// delete it. Steam sets gameDir to the workshop content dir (already outside bin/); when
+	// standalone gameDir is "" so we store one level up from bin/ (the project root), like the
+	// SQLite DBs use "../". Either way the file lives outside bin/.
+	private static File userConfig() {
+		String gd = haven.Client.gameDir;
+		String base = (gd == null || gd.isEmpty()) ? "../" : gd;
+		return new File(base + "AlarmSounds/settings/yourSavedConfig");
+	}
+
 	// Load settings from file or use defaults if file does not exist
 	public static void load() {
 		alarms.clear();
-		File config = new File(haven.Client.gameDir + "AlarmSounds/settings/yourSavedConfig");
+		File config = userConfig();
+		if(!config.exists())
+			config = new File(haven.Client.gameDir + "AlarmSounds/settings/yourSavedConfig"); // legacy bin/ location
 		if(!config.exists()) {
 			defaultSettings();
 		} else {
@@ -73,7 +85,11 @@ public class AlarmManager {
 	// Save current settings to file
 	public static void save() {
 		try {
-			BufferedWriter bw = Files.newBufferedWriter(Paths.get(new File(haven.Client.gameDir + "AlarmSounds/settings/yourSavedConfig").toURI()), StandardCharsets.UTF_8);
+			File config = userConfig();
+			File dir = config.getParentFile();
+			if(dir != null && !dir.exists())
+				dir.mkdirs();
+			BufferedWriter bw = Files.newBufferedWriter(Paths.get(config.toURI()), StandardCharsets.UTF_8);
 			for(Map.Entry<String, Alarm> e : alarms.entrySet()) {
 				bw.write(e.getKey() + ";" + e.getValue().enabled + ";" + e.getValue().alarmName + ";" + e.getValue().filePath.replace(".wav", "") + ";" + e.getValue().volume + ";" + e.getValue().knocked+"\n");
 			}
