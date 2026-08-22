@@ -53,7 +53,7 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
     public long plgob = -1;
     public Coord2d cc;
     public final Glob glob;
-    private int view = Utils.clip(Utils.getprefi("groundRenderDistance", 2), 1, 4);
+    private int view = OptWnd.groundRenderDistanceSlider.val;
     private Collection<Delayed> delayed = new LinkedList<Delayed>();
     private Collection<Delayed> delayed2 = new LinkedList<Delayed>();
     public Camera camera = restorecam();
@@ -623,7 +623,7 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
     }
 
     public void setGroundRenderDistance(int view) {
-	this.view = Utils.clip(view, 1, 5);
+	this.view = Utils.clip(view, 1, 3);
     }
     
     protected void envdispose() {

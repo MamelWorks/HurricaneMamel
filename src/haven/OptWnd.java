@@ -4010,9 +4010,9 @@ public class OptWnd extends Window {
 				}
 			}), leftColumn.pos("bl").adds(210, -20));
 			nightVisionResetButton.tooltip = resetButtonTooltip;
-			int groundRenderDistance = Utils.clip(Utils.getprefi("groundRenderDistance", 2), 1, 4);
+			int groundRenderDistance = Utils.clip(Utils.getprefi("groundRenderDistance", 2), 1, 3);
 			leftColumn = add(groundRenderDistanceLabel = new Label("Ground Render Distance: " + groundRenderDistance), leftColumn.pos("bl").adds(0, 14));
-			leftColumn = add(groundRenderDistanceSlider = new HSlider(UI.scale(200), 2, 4, groundRenderDistance) {
+			leftColumn = add(groundRenderDistanceSlider = new HSlider(UI.scale(200), 2, 3, groundRenderDistance) {
 				public void changed() {
 					Utils.setprefi("groundRenderDistance", val);
 					groundRenderDistanceLabel.settext("Ground Render Distance: " + val);
