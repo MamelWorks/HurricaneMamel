@@ -8,6 +8,7 @@ import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -28,6 +29,63 @@ public class AlarmWindow extends Window {
 	private static ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 	private static Future<?> future;
 	private static Future<?> future2;
+	// ND: List all .wav files (name without extension) in the AlarmSounds folder, sorted.
+	static List<String> availableSounds() {
+		List<String> out = new ArrayList<>();
+		try {
+			File dir = new File(haven.Client.gameDir + "AlarmSounds/");
+			File[] files = dir.listFiles((d, n) -> n.toLowerCase().endsWith(".wav"));
+			if (files != null) {
+				for (File f : files) {
+					String n = f.getName();
+					out.add(n.substring(0, n.length() - 4));
+				}
+				out.sort(String.CASE_INSENSITIVE_ORDER);
+			}
+		} catch (Exception ignored) {}
+		return out;
+	}
+
+	// ND: Dropdown of the AlarmSounds .wav files, replacing the old free-text field.
+	public static class SoundDropBox extends OldDropBox<String> {
+		private final List<String> options;
+		private final Runnable onchange;
+
+		public SoundDropBox(int w, String initial, Runnable onchange) {
+			// 2nd arg is the max number of VISIBLE rows; the rest get a scrollbar + mouse-wheel
+			// scrolling (both provided by OldListBox). Cap at 10 so a long list doesn't run off-screen.
+			super(w, 10, UI.scale(16));
+			List<String> opts = availableSounds();
+			// Keep a saved-but-missing file selectable so an existing alarm isn't silently changed.
+			if (initial != null && !initial.isEmpty() && !opts.contains(initial))
+				opts.add(0, initial);
+			this.options = opts;
+			this.onchange = onchange;
+			// OldListWidget.indexof() compares by reference (==), so we must hand change()
+			// the exact String instance from the list, not the (equal-but-distinct) 'initial'.
+			String want = (initial != null && !initial.isEmpty()) ? initial : (opts.isEmpty() ? null : opts.get(0));
+			if (want != null) {
+				for (String s : opts) {
+					if (s.equals(want)) { super.change(s); break; }
+				}
+			}
+		}
+
+		@Override
+		protected String listitem(int i) { return options.get(i); }
+		@Override
+		protected int listitems() { return options.size(); }
+		@Override
+		protected void drawitem(GOut g, String item, int i) {
+			g.aimage(Text.renderstroked(item).tex(), Coord.of(UI.scale(3), g.sz().y / 2), 0.0, 0.5);
+		}
+		@Override
+		public void change(String item) {
+			super.change(item);
+			if (onchange != null) onchange.run();
+		}
+		public String value() { return sel == null ? "" : sel; }
+	}
 
 
 	public AlarmWindow() {
@@ -41,7 +99,7 @@ public class AlarmWindow extends Window {
 		prev = add(resPathLabel = new Label("Resource Path"), prev.pos("ul").adds(170, 0));
 		resPathLabel.tooltip = RichText.render("This is the resource path of the entity type for which you want to throw an alarm.\n$col[200,0,0]{Note: This field can not be changed after the alarm has been added!}", UI.scale(300));
 		prev = add(soundFileLabel = new Label("Sound File"), prev.pos("ul").adds(180, 0));
-		soundFileLabel.tooltip = RichText.render("This is the name of the .wav sound file that will be played when the alarm is triggered.\nThe file must be present in the \"AlarmSounds\" folder.\n$col[185,185,185]{You don't need to include the file extension in this box, but it must always be a .wav file!}", UI.scale(300));
+		soundFileLabel.tooltip = RichText.render("The .wav sound file that will be played when the alarm is triggered.\nPick one from the dropdown - it lists every .wav in the \"AlarmSounds\" folder.\n$col[185,185,185]{Drop your own .wav files into that folder and they show up here (reopen this window to refresh).}", UI.scale(300));
 		prev = add(new Label("Volume"), prev.pos("ul").adds(120, 0));
 		prev = add(dontTriggerCheckboxLabel = new Label("Also trigger for"), prev.pos("ul").adds(73, -6));
 		prev = add(dontTriggerCheckboxLabel2 = new Label("KO'd or Dead"), prev.pos("ul").adds(2, 14));
@@ -68,7 +126,7 @@ public class AlarmWindow extends Window {
 		resPathLabel2.tooltip = RichText.render("This is the resource path of the entity type for which you want to throw an alarm.\n$col[200,0,0]{Note: This field can not be changed after the alarm has been added!}", UI.scale(300));
 		Label soundFileLabel2;
 		prev = add(soundFileLabel2 = new Label("Sound File"), prev.pos("ul").adds(180, 0));
-		soundFileLabel2.tooltip = RichText.render("This is the name of the .wav sound file that will be played when the alarm is triggered.\nThe file must be present in the \"AlarmSounds\" folder.\n$col[185,185,185]{You don't need to include the file extension in this box, but it must always be a .wav file!}", UI.scale(300));
+		soundFileLabel2.tooltip = RichText.render("The .wav sound file that will be played when the alarm is triggered.\nPick one from the dropdown - it lists every .wav in the \"AlarmSounds\" folder.\n$col[185,185,185]{Drop your own .wav files into that folder and they show up here (reopen this window to refresh).}", UI.scale(300));
 		prev = add(new Label("Volume"), prev.pos("ul").adds(120, 0));
 		Label dontTriggerCheckboxLabel0;
 		prev = add(dontTriggerCheckboxLabel0 = new Label("Also trigger for"), prev.pos("ul").adds(73, -6));
@@ -90,12 +148,7 @@ public class AlarmWindow extends Window {
 			}
 		};
 		prev = add(addGobResname, prev.pos("ul").adds(138, 0));
-		TextEntry addAlarmFilename = new TextEntry(UI.scale(100), ""){
-			protected void changed() {
-				this.settext(this.text().replaceAll(" ", ""));
-				super.changed();
-			}
-		};
+		SoundDropBox addAlarmFilename = new SoundDropBox(UI.scale(100), "", null);
 		prev = add(addAlarmFilename, prev.pos("ul").adds(218, 0));
 		HSlider addVolume = new HSlider(UI.scale(100),0, 100,50);
 		prev =  add(addVolume, prev.pos("ul").adds(114, 3));
@@ -116,7 +169,7 @@ public class AlarmWindow extends Window {
 					future = executor.scheduleWithFixedDelay(this::resetBottomNote, 4, 5, TimeUnit.SECONDS);
 					return;
 				}
-				if (addAlarmFilename.text().isEmpty()) {
+				if (addAlarmFilename.value().isEmpty()) {
 					bottomNote.settext("You need to set an Alarm File!");
 					bottomNote.setcolor(Color.RED);
 					bottomNote.c.x = UI.scale(345);
@@ -128,11 +181,10 @@ public class AlarmWindow extends Window {
 					if (al.items.get(i).gobResname.texts.equals(addGobResname.buf.line()))
 						alreadyExists = true;
 				if (!alreadyExists) {
-					al.addItem(new AlarmItem(addGobResname.buf.line(), enabled.a, alarmName.buf.line(), addAlarmFilename.buf.line(), addVolume.val, knocked.a));
+					al.addItem(new AlarmItem(addGobResname.buf.line(), enabled.a, alarmName.buf.line(), addAlarmFilename.value(), addVolume.val, knocked.a));
 					enabled.a = true;
 					alarmName.settext("");
 					addGobResname.settext("");
-					addAlarmFilename.settext("");
 					addVolume.val = 50;
 					knocked.a = false;
 					bottomNote.settext("Alarm added successfully!");
@@ -266,6 +318,10 @@ public class AlarmWindow extends Window {
 			for(int i=0; i<rows; i++) {
 				if(i+sb.val >= items.size())
 					break;
+				// Keep each visible row's real widget position in sync with where it's drawn,
+				// so child popups (the Sound File dropdown list) anchor to the right row.
+				// The manual reclip-draw ignores c, but Widget.rootpos() uses it.
+				items.get(i+sb.val).c = new Coord(0, i*rowHeight);
 				GOut ig = g.reclip(new Coord(0, i*rowHeight), UI.scale(w, rowHeight));
 				items.get(i+sb.val).draw(ig);
 			}
@@ -286,7 +342,8 @@ public class AlarmWindow extends Window {
 	public static class AlarmItem extends Widget {
 
 		private Label gobResname;
-		private TextEntry alarmName, alarmFilename;
+		private TextEntry alarmName;
+		private SoundDropBox alarmFilename;
 		private HSlider volume;
 		private CheckBox enabled, knocked;
 
@@ -325,15 +382,10 @@ public class AlarmWindow extends Window {
 //			};
 			this.gobResname = new Label(gobResname, UI.scale(200));
 			prev = add(this.gobResname, prev.pos("ul").adds(138,0));
-			this.alarmFilename = new TextEntry(UI.scale(100), alarmFilename.replace(".wav", "")){
-				@Override
-				protected void changed() {
-					this.settext(this.text().replaceAll(" ", ""));
-					AlarmManager.load(al);
-					AlarmManager.save();
-					super.changed();
-				}
-			};
+			this.alarmFilename = new SoundDropBox(UI.scale(100), alarmFilename.replace(".wav", ""), () -> {
+				AlarmManager.load(al);
+				AlarmManager.save();
+			});
 			prev = add(this.alarmFilename, prev.pos("ul").adds(218,0));
 			this.volume = new HSlider(UI.scale(100), 0, 100, volume){
 				@Override
@@ -413,12 +465,12 @@ public class AlarmWindow extends Window {
 		}
 
 		public String getAlarmFilename() {
-			if (alarmFilename.buf.line().endsWith(".wav")){
-				return alarmFilename.buf.line();
+			String v = alarmFilename.value();
+			if (v.endsWith(".wav")) {
+				return v;
 			} else {
-				return (alarmFilename.buf.line()+".wav");
+				return (v + ".wav");
 			}
-
 		}
 
 		public String getAlarmName() {
