@@ -3874,7 +3874,7 @@ public class OptWnd extends Window {
 			allowLowerFreeCamTiltCheckBox.tooltip = allowLowerFreeCamTiltTooltip;
 			allowLowerFreeCamTiltCheckBox.lbl = Text.create("Enable Lower Tilting Angle", PUtils.strokeImg(Text.std.render("Enable Lower Tilting Angle", new Color(185,0,0,255))));
 			FreePrev = add(freeCamZoomSpeedLabel = new Label("Free Camera Zoom Speed:"), FreePrev.pos("bl").adds(0, 10).x(0));
-			FreePrev = add(freeCamZoomSpeedSlider = new HSlider(UI.scale(200), 4, 40, Utils.getprefi("freeCamZoomSpeed", 25)) {
+			FreePrev = add(freeCamZoomSpeedSlider = new HSlider(UI.scale(200), 4, 120, Utils.getprefi("freeCamZoomSpeed", 25)) {
 				public void changed() {
 					Utils.setprefi("freeCamZoomSpeed", val);
 				}
