@@ -47,6 +47,7 @@ public class FlowerMenu extends Widget {
     public static final int ph = UI.scale(30), ppl = 8;
     public Petal[] opts;
     private UI.Grab mg, kg;
+    private java.util.function.IntConsumer localcb = null; // ND: when set, this is a client-side menu; choose() runs this instead of messaging the server
 	public static final Color ptcRed = new Color(255, 50, 50);
 	public static final Color ptcGreen = new Color(0, 200, 50);
 	public static final Color ptcYellow = new Color(252, 186, 3);
@@ -259,6 +260,19 @@ public class FlowerMenu extends Widget {
 	}
     }
 
+    // ND: Client-side flower menu. On selection runs cb.accept(index) locally instead of
+    // sending to the server. Not registered in the flower-menu auto-select database.
+    public FlowerMenu(java.util.function.IntConsumer cb, String... options) {
+	super(Coord.z);
+	this.localcb = cb;
+	this.options = options;
+	opts = new Petal[options.length];
+	for(int i = 0; i < options.length; i++) {
+	    add(opts[i] = new Petal(options[i], i));
+	    opts[i].num = i;
+	}
+    }
+
     protected void added() {
 	if(c.equals(-1, -1))
 	    c = parent.ui.lcc;
@@ -267,7 +281,8 @@ public class FlowerMenu extends Widget {
 	organizeVertical(opts);
 //	new Opening().ntick(0);
 	resize(contentsz().add(new Coord(UI.scale(3), UI.scale(3))));
-	tryAutoSelect();
+	if(localcb == null)
+	    tryAutoSelect();
     }
 
     public boolean mousedown(MouseDownEvent ev) {
@@ -311,6 +326,13 @@ public class FlowerMenu extends Widget {
     }
 
     public void choose(Petal option) {
+	if(localcb != null) {
+	    if(mg != null) mg.remove();
+	    if(kg != null) kg.remove();
+	    reqdestroy();
+	    if(option != null) localcb.accept(option.num);
+	    return;
+	}
 	if(option == null) {
 	    wdgmsg("cl", -1);
 	} else {

@@ -84,6 +84,15 @@ public class AlarmManager {
 		}
 	}
 
+	// ND: Per-gob alarm control for the Shift+Middle-click gob menu in the world.
+	public static boolean hasAlarm(String resname) {
+		return alarms.containsKey(resname);
+	}
+	public static void removeAlarm(String resname) {
+		if(alarms.remove(resname) != null)
+			save();
+	}
+
 	public static AlarmWindow.AlarmItem[] getAlarmItems() {
 		AlarmWindow.AlarmItem[] alarmItems = new AlarmWindow.AlarmItem[alarms.size()];
 		Iterator<Map.Entry<String, Alarm>> it = alarms.entrySet().iterator();

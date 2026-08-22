@@ -29,6 +29,26 @@ public class AlarmWindow extends Window {
 	private static ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 	private static Future<?> future;
 	private static Future<?> future2;
+	private TextEntry newAlarmNameEntry, newGobResnameEntry; // ND: create-new row fields, for prefill from the world "Add Sound" flower menu
+
+	// ND: Prefill the "Create new alarm" row (resource path + name) so the user only has
+	// to pick a Sound File and hit Add Alarm. Used by the Shift+Middle-click gob menu.
+	public void prefillNewAlarm(String resname, String name) {
+		if(newGobResnameEntry != null) newGobResnameEntry.settext(resname);
+		if(newAlarmNameEntry != null) newAlarmNameEntry.settext(name);
+	}
+
+	// ND: Open (creating if needed) the Custom Alarm Manager and prefill its new-alarm row.
+	public static void openForGob(GameUI gui, String resname, String name) {
+		if(gui == null || gui.opts == null)
+			return;
+		if(gui.opts.alarmWindow == null)
+			gui.opts.alarmWindow = gui.opts.parent.parent.add(new AlarmWindow());
+		gui.opts.alarmWindow.show();
+		gui.opts.alarmWindow.raise();
+		gui.opts.alarmWindow.prefillNewAlarm(resname, name);
+	}
+
 	// ND: List all .wav files (name without extension) in the AlarmSounds folder, sorted.
 	static List<String> availableSounds() {
 		List<String> out = new ArrayList<>();
@@ -139,6 +159,7 @@ public class AlarmWindow extends Window {
 			{a = true;}
 		}, UI.scale(50,421));
 		TextEntry alarmName = new TextEntry(UI.scale(120), "");
+		newAlarmNameEntry = alarmName;
 		prev = add(alarmName, prev.pos("ul").adds(30, -2));
 		add(bottomNote = new Label("NOTE: You can add your own alarm sound files in the \"AlarmSounds\" folder. (The file extension must be .wav)", new Text.Foundry(Text.sans, 12)), prev.pos("ul").adds(0, 34).x(UI.scale(140)));
 		TextEntry addGobResname = new TextEntry(UI.scale(200), ""){
@@ -147,6 +168,7 @@ public class AlarmWindow extends Window {
 				super.changed();
 			}
 		};
+		newGobResnameEntry = addGobResname;
 		prev = add(addGobResname, prev.pos("ul").adds(138, 0));
 		SoundDropBox addAlarmFilename = new SoundDropBox(UI.scale(100), "", null);
 		prev = add(addAlarmFilename, prev.pos("ul").adds(218, 0));

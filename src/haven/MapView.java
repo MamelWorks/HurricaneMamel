@@ -2383,6 +2383,23 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 						}
 					} catch (Loading ignored) {}
 				}
+				if (clickb == 2 && ui.modshift && !ui.modctrl && !ui.modmeta && ui.gui != null) {
+					try {
+						final String rn = gob.getres().name;
+						final String disp = rn.substring(rn.lastIndexOf('/') + 1);
+						final boolean has = AlarmManager.hasAlarm(rn);
+						FlowerMenu menu = new FlowerMenu((sel) -> {
+							if (has) {
+								AlarmManager.removeAlarm(rn);
+								ui.msg("Alarm sound removed for " + disp + ".");
+							} else {
+								AlarmWindow.openForGob(ui.gui, rn, disp);
+							}
+						}, has ? "Remove Sound" : "Add Sound");
+						ui.root.add(menu, ui.mc);
+					} catch (Loading ignored) {}
+					return;
+				}
 				if (OptWnd.clickThroughContainerDecalCheckBox.a && !ui.modctrl) {
 					try {
 						if ((gob.getres().name.contains("cupboard") || gob.getres().name.contains("chest")) && (int)args[2] == 3) {
