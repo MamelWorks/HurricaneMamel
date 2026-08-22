@@ -1341,6 +1341,8 @@ public class OptWnd extends Window {
 	public static TextEntry minimumOpeningTextEntry;
 	public static HSlider combatUITopPanelHeightSlider;
 	public static HSlider combatUIBottomPanelHeightSlider;
+	public static HSlider combatUIOffsetXSlider;
+	public static HSlider combatUIOffsetYSlider;
 	public static CheckBox toggleGobDamageInfoCheckBox;
 	public static CheckBox toggleGobDamageWoundInfoCheckBox;
 	public static CheckBox toggleGobDamageArmorInfoCheckBox;
@@ -1403,6 +1405,31 @@ public class OptWnd extends Window {
 			add(new Button(UI.scale(70), "Reset", false).action(() -> {
 				combatUIBottomPanelHeightSlider.val = 100;
 				Utils.setprefi("combatBottomPanelHeight", 100);
+			}), leftColumn.pos("bl").adds(210, -20)).tooltip = resetButtonTooltip;
+
+			leftColumn = add(new Label("Opponents Panel Offset X (0 = default, right):"), leftColumn.pos("bl").adds(0, 10));
+			leftColumn = add(combatUIOffsetXSlider = new HSlider(UI.scale(200), -1600, 200, Utils.getprefi("combatUiOffsetX", 0)) {
+				public void changed() {
+					Utils.setprefi("combatUiOffsetX", val);
+					if(ui != null && ui.gui != null) ui.gui.updateCombatUIOffset();
+				}
+			}, leftColumn.pos("bl").adds(0, 2));
+			add(new Button(UI.scale(70), "Reset", false).action(() -> {
+				combatUIOffsetXSlider.val = 0;
+				Utils.setprefi("combatUiOffsetX", 0);
+				if(ui != null && ui.gui != null) ui.gui.updateCombatUIOffset();
+			}), leftColumn.pos("bl").adds(210, -20)).tooltip = resetButtonTooltip;
+			leftColumn = add(new Label("Opponents Panel Offset Y (0 = default, top):"), leftColumn.pos("bl").adds(0, 10));
+			leftColumn = add(combatUIOffsetYSlider = new HSlider(UI.scale(200), -100, 900, Utils.getprefi("combatUiOffsetY", 0)) {
+				public void changed() {
+					Utils.setprefi("combatUiOffsetY", val);
+					if(ui != null && ui.gui != null) ui.gui.updateCombatUIOffset();
+				}
+			}, leftColumn.pos("bl").adds(0, 2));
+			add(new Button(UI.scale(70), "Reset", false).action(() -> {
+				combatUIOffsetYSlider.val = 0;
+				Utils.setprefi("combatUiOffsetY", 0);
+				if(ui != null && ui.gui != null) ui.gui.updateCombatUIOffset();
 			}), leftColumn.pos("bl").adds(210, -20)).tooltip = resetButtonTooltip;
 
 			leftColumn = add(showEstimatedAgilityTextCheckBox = new CheckBox("Show Target Estimated Agility (Top Panel)"){

@@ -733,6 +733,9 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
 		c.y -= (int)(sz.y * a);
 	    else if(g.y > 0)
 		c.y -= (int)(sz.y * (1 - a));
+	    // ND: user-configurable offset for the combat (Fightview) panel, via Combat Settings sliders
+	    if("gui-ur".equals(id))
+		c = c.add(UI.scale(Utils.getprefi("combatUiOffsetX", 0)), UI.scale(Utils.getprefi("combatUiOffsetY", 0)));
 	    this.c = c;
 	}
 
@@ -2351,6 +2354,12 @@ public class GameUI extends ConsoleHost implements Console.Directory, UI.Notice.
     public Map<String, Console.Command> findcmds() {
 	return(cmdmap);
     }
+
+	// ND: re-apply the combat (Fightview) panel offset live when its sliders change
+	public void updateCombatUIOffset() {
+		if(urpanel != null)
+			urpanel.move();
+	}
 
 	public List<Window> getAllWindows() {
 		List<Window> windows = new ArrayList<Window>();
