@@ -5490,7 +5490,7 @@ public class OptWnd extends Window {
 	private static final Object flowerMenuAutoSelectManagerTooltip = RichText.render("An advanced menu to automatically select specific flower menu options all the time. New options are added to the list as you discover them." +
 			"\n" +
 			"\n$col[185,185,185]{I don't recommend using this, but nevertheless it exists due to popular demand.}", UI.scale(300));
-	private static final Object autoSwitchBootsTooltip = RichText.render("Switches your currently equipped shoes to Bunny Slippers when you right click to chase a rabbit, or Plate Boots if you click on anything else." +
+	private static final Object autoSwitchBootsTooltip = RichText.render("Switches your currently equipped shoes to Bunny Slippers when you right click to chase a rabbit, or the highest-priority available armor boots if you click on anything else." +
 			"\n" +
 			"\n$col[185,185,185]{I suggest always using this setting in PVP.}", UI.scale(300));
 	private static final Object autoPeaceAnimalsWhenCombatStartsTooltip = RichText.render("This will automatically set your status to 'Peace' when combat is initiated with a new target (animals only). " +

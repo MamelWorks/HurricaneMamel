@@ -57,7 +57,7 @@ public class InteractWithCursorNearest implements Runnable {
                             || (InteractWithNearestObject.mines.contains(res.name) && Utils.getprefb("clickNearestObject_MineholesAndLadders", false))) {
                                 if (res.name.startsWith("gfx/terobjs/herbs") || InteractWithNearestObject.otherForageablesThatRequireFlowerMenuPick.contains(res.basename())) FlowerMenu.setNextSelection("Pick"); // ND: Set the flower menu option to "pick" only for these particular ones.
                                 if (OptWnd.autoSwitchBootsCheckBox.a) {
-                                    gui.map.switchBunnySlippersAndPlateBoots(clickedGob);
+                                    gui.map.switchBunnySlippersAndArmorBoots(clickedGob);
                                 }
                                 gui.map.wdgmsg("click", Coord.z, clickedGob.rc.floor(posres), 3, 0, 0, (int) clickedGob.id, clickedGob.rc.floor(posres), 0, -1);
                                 if (gui.interactWithNearestObjectThread != null) {
@@ -139,7 +139,7 @@ public class InteractWithCursorNearest implements Runnable {
                     } catch (Exception ignored) {}
                 } else {
                     if (OptWnd.autoSwitchBootsCheckBox.a) {
-                        gui.map.switchBunnySlippersAndPlateBoots(theObject);
+                        gui.map.switchBunnySlippersAndArmorBoots(theObject);
                     }
                     gui.map.wdgmsg("click", Coord.z, theObject.rc.floor(posres), 3, 0, 0, (int) theObject.id, theObject.rc.floor(posres), 0, -1);
                     if (gui.interactWithNearestObjectThread != null) {

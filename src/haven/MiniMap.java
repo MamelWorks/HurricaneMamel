@@ -1489,7 +1489,7 @@ public class MiniMap extends Widget {
 				}
 			}
 			if (OptWnd.autoSwitchBootsCheckBox.a) {
-				ui.gui.map.switchToPlateBoots();
+				ui.gui.map.switchToArmorBoots();
 			}
 			if(mv.checkpointManager != null && mv.checkpointManagerThread != null && button == 1){
 				if (!ui.modmeta)
@@ -1514,9 +1514,9 @@ public class MiniMap extends Widget {
             }
 			if (OptWnd.autoSwitchBootsCheckBox.a) {
 				if (button == 3)
-					ui.gui.map.switchBunnySlippersAndPlateBoots(gob);
+					ui.gui.map.switchBunnySlippersAndArmorBoots(gob);
 				if (button == 1)
-					ui.gui.map.switchToPlateBoots();
+					ui.gui.map.switchToArmorBoots();
 			}
 		Object[] args = {mc, loc.tc.sub(sessloc.tc).mul(tilesz).add(tilesz.div(2)).floor(posres), button, ui.modflags(), 0, (int) gob.id, gob.rc.floor(posres), 0, -1};
 			if (button == 3 && OptWnd.autoSelect1stFlowerMenuCheckBox.a) {
