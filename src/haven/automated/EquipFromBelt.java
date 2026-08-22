@@ -66,6 +66,9 @@ public class EquipFromBelt implements Runnable {
                     case "Equip_FyrdsmansSwordWoodenShield":
                         equipTwoDifferentItemsFromBelt("gfx/invobjs/small/roundshield", "gfx/invobjs/small/fyrdsword", "Shield", "Fyrdsman's Sword");
                         break;
+                    case "Equip_StoneAxeWoodenShield":
+                        equipTwoDifferentItemsFromBelt("gfx/invobjs/small/roundshield", "gfx/invobjs/stoneaxe", "Shield", "Stone Axe");
+                        break;
                     case "Equip_HuntersBow":
                         equipTwoHanderFromBelt("gfx/invobjs/small/huntersbow", "Hunter's Bow");
                         break;
