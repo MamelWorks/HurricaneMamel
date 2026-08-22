@@ -34,7 +34,6 @@ import haven.resutil.Ridges;
 import haven.sprites.AggroCircleSprite;
 import haven.sprites.ChaseVectorSprite;
 import haven.sprites.PartyCircleSprite;
-import haven.sprites.sky.*;
 
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
@@ -57,6 +56,8 @@ public class OptWnd extends Window {
 	public final Panel advancedSettings;
     public Panel current;
 	private PButton videoButton, audioButton, keybindButton;
+	private static final ScheduledExecutorService skyboxExecutor = Executors.newSingleThreadScheduledExecutor();
+	private static Future<?> skyboxFuture;
 	public static final Color msgGreen = new Color(8, 211, 0);
 	public static final Color msgGray = new Color(145, 145, 145);
 	public static final Color msgRed = new Color(197, 0, 0);
@@ -3223,20 +3224,24 @@ public class OptWnd extends Window {
 		y = addbtnImproved(cont, "Click Nearest Object (You)","When this button is pressed, you will instantly click the nearest object to you, selected from below." +
 				"\n$col[218,163,0]{Range:} $col[185,185,185]{12 tiles (approximately)}", new Color(255, 191, 0,255), GameUI.kb_clickNearestObject, y);
 		Widget objectsLeft, objectsRight;
-		y = cont.adda(objectsLeft = new Label("Objects to Click:"), UI.scale(20), y + UI.scale(2), 0, 0.0).pos("bl").adds(0, 5).y;
-		objectsLeft = cont.add(new CheckBox("Forageables"){{a = Utils.getprefb("clickNearestObject_Forageables", true);}
-			public void changed(boolean val) {Utils.setprefb("clickNearestObject_Forageables", val);}}, objectsLeft.pos("ur").adds(4, 0)).settip("Pick the nearest Forageable.");
+		y = cont.adda(objectsLeft = new Label("Objects to Click:"), UI.scale(10), y + UI.scale(2), 0, 0.0).pos("bl").adds(0, 5).y;
+		objectsLeft = cont.add(new CheckBox("Fence Gates"){{a = Utils.getprefb("clickNearestObject_FenceGates", true);}
+			public void changed(boolean val) {Utils.setprefb("clickNearestObject_FenceGates", val);}}, objectsLeft.pos("ur").adds(4, 0)).settip("Open/Close the nearest Fence Gate.");
+		objectsRight = cont.add(new CheckBox("Forageables"){{a = Utils.getprefb("clickNearestObject_Forageables", true);}
+			public void changed(boolean val) {Utils.setprefb("clickNearestObject_Forageables", val);}}, objectsLeft.pos("ur").adds(38, 0)).settip("Pick the nearest Forageable.");
+		objectsLeft = cont.add(new CheckBox("Wall Gates"){{a = Utils.getprefb("clickNearestObject_WallGates", true);}
+			public void changed(boolean val) {Utils.setprefb("clickNearestObject_WallGates", val);}}, objectsLeft.pos("bl").adds(0, 4)).settip("Open/Close the nearest Wall Gate (Palisade/Brick Wall).");
 		objectsRight = cont.add(new CheckBox("Critters"){{a = Utils.getprefb("clickNearestObject_Critters", true);}
-			public void changed(boolean val) {Utils.setprefb("clickNearestObject_Critters", val);}}, objectsLeft.pos("ur").adds(50, 0)).settip("Chase the nearest Critter.");
-		objectsLeft = cont.add(new CheckBox("Non-Visitor Gates"){{a = Utils.getprefb("clickNearestObject_NonVisitorGates", true);}
-			public void changed(boolean val) {Utils.setprefb("clickNearestObject_NonVisitorGates", val);}}, objectsLeft.pos("bl").adds(0, 4)).settip("Open/Close the nearest Non-Visitor Gate.");
+			public void changed(boolean val) {Utils.setprefb("clickNearestObject_Critters", val);}}, objectsRight.pos("bl").adds(0, 4)).settip("Chase the nearest Critter.");
+		objectsLeft = cont.add(new CheckBox("Visitor Gates"){{a = Utils.getprefb("clickNearestObject_VisitorGates", false);}
+			public void changed(boolean val) {Utils.setprefb("clickNearestObject_VisitorGates", val);}}, objectsLeft.pos("bl").adds(0, 4)).settip("Open/Close the nearest Visitor Gate (Palisade/Brick Wall).");
 		objectsRight = cont.add(new CheckBox("Caves"){{a = Utils.getprefb("clickNearestObject_Caves", false);}
 			public void changed(boolean val) {Utils.setprefb("clickNearestObject_Caves", val);}}, objectsRight.pos("bl").adds(0, 4)).settip("Go through the nearest Cave Entrance/Exit.");
-		objectsLeft = cont.add(new CheckBox("Mineholes & Ladders"){{a = Utils.getprefb("clickNearestObject_MineholesAndLadders", false);}
+		objectsLeft = cont.add(new CheckBox("Mineholes/Ladders"){{a = Utils.getprefb("clickNearestObject_MineholesAndLadders", false);}
 			public void changed(boolean val) {Utils.setprefb("clickNearestObject_MineholesAndLadders", val);}}, objectsLeft.pos("bl").adds(0, 4)).settip("Hop down the nearest Minehole, or Climb up the nearest Ladder.");
 		objectsRight = cont.add(new CheckBox("Doors"){{a = Utils.getprefb("clickNearestObject_Doors", false);}
 			public void changed(boolean val) {Utils.setprefb("clickNearestObject_Doors", val);}}, objectsRight.pos("bl").adds(0, 4)).settip("Go through the nearest Door.");
-		y+=UI.scale(60);
+		y+=UI.scale(80);
 		y = addbtnImproved(cont, "Hop on Nearest Vehicle", "When this button is pressed, your character will run towards the nearest mountable Vehicle/Animal, and try to mount it." +
 				"\n\n$col[185,185,185]{If the closest vehicle to you is full, or unmountable (like a rowboat on land), it will keep looking for the next closest mountable vehicle.}" +
 				"\n\n$col[218,163,0]{Works with:} Knarr, Snekkja, Rowboat, Dugout, Kicksled, Coracle, Wagon, Wilderness Skis, Tamed Horse" +
@@ -4222,12 +4227,10 @@ public class OptWnd extends Window {
 			enableSkyboxCheckBox.tooltip = enableSkyboxTooltip;
 
 			rightColumn = add(new Label("Skybox Style:"), rightColumn.pos("bl").adds(0, 4));
-			/* Order must match SkyPalette's SIMPLE/REALISTIC/GALAXY/CLOUDS,
-			 * which are what the stored index means. */
-			List<String> skyboxStyles = Arrays.asList("Simple Sky", "Realistic Sky", "Galaxy", "Clouds");
+			List<String> skyboxStyles = Arrays.asList("Clouds", "Galaxy");
 			add(new OldDropBox<String>(skyboxStyles.size(), skyboxStyles) {
 				{
-					super.change(skyboxStyles.get(Utils.clip(SkyPalette.style, 0, skyboxStyles.size() - 1)));
+					super.change(skyboxStyles.get(Utils.getprefi("skyboxStyle", 0)));
 				}
 				@Override
 				protected String listitem(int i) {
@@ -4246,17 +4249,17 @@ public class OptWnd extends Window {
 					super.change(item);
 					for (int i = 0; i < skyboxStyles.size(); i++){
 						if (item.equals(skyboxStyles.get(i))){
-							Utils.setprefi("skyboxSky", i);
-							OptWnd.this.reloadSkybox();
+							Utils.setprefi("skyboxStyle", i);
+							if (enableSkyboxCheckBox.a) { // ND: It's easier to just reset the checkbox to load the new skybox, haha...
+								enableSkyboxCheckBox.set(false);
+								if (skyboxFuture != null)
+									skyboxFuture.cancel(true);
+								skyboxFuture = skyboxExecutor.scheduleWithFixedDelay(OptWnd.this::resetSkyboxCheckbox, 200, 3000, TimeUnit.MILLISECONDS);
+							}
 						}
 					}
 				}
-			}, rightColumn.pos("ur").adds(4, 0)).tooltip = skyboxStyleTooltip;
-
-			rightColumn = add(new Button(UI.scale(120), "Sky Time...", false).action(() -> {
-				if (ui != null && ui.gui != null)
-					SkyTimeWnd.toggle(ui.gui);
-			}), rightColumn.pos("bl").adds(0, 4));
+			}, rightColumn.pos("ur").adds(4, 0));
 
 			rightColumn = add(new Label("Trees & Bushes Scale:"), rightColumn.pos("bl").adds(0, 14).xs(290));
 			rightColumn = add(treeAndBushScaleSlider = new HSlider(UI.scale(200), 30, 100, Utils.getprefi("treeAndBushScale", 100)) {
@@ -5267,14 +5270,9 @@ public class OptWnd extends Window {
 		pack();
 	}
 
-	/* Rebuild the skybox overlay in place. Replaces an executor that
-	 * unchecked and re-checked the enable box on a timer. */
-	private void reloadSkybox() {
-		SkyPalette.reload();
-		if((enableSkyboxCheckBox == null) || !enableSkyboxCheckBox.a)
-			return;
-		if((ui != null) && (ui.sess != null))
-			ui.sess.glob.oc.gobAction(Gob::reloadSkybox);
+	private void resetSkyboxCheckbox(){
+		enableSkyboxCheckBox.set(true);
+		skyboxFuture.cancel(true);
 	}
 
 	// ND: Setting Tooltips
@@ -5622,17 +5620,6 @@ public class OptWnd extends Window {
 	private static final Object enableSkyboxTooltip = RichText.render("Adds a skybox to the game world." +
 			"\n" +
 			"\n$col[185,185,185]{Summon the sky above the hearthlands, and banish the endless void!}", UI.scale(190));
-	private static final Object skyboxStyleTooltip = RichText.render("Which sky the skybox draws." +
-			"\n" +
-			"\n$col[185,185,185]{Simple Sky} draws the sky from an analytic gradient. "+
-			"$col[185,185,185]{Realistic Sky} computes it from atmospheric scattering, so the horizon, the dawn and the sun's halo follow the time of day more closely. "+
-			"$col[185,185,185]{Galaxy} and $col[185,185,185]{Clouds} are painted textures rather than computed skies." +
-			"\n" +
-			"\n$col[185,185,185]{These are four different skies, not four quality levels. Realistic Sky costs about 0.35 ms of GPU time more than Simple Sky -- roughly 2% of a frame at 60fps -- so pick whichever you like the look of.}" +
-			"\n" +
-			"\n$col[218,163,32]{Simple Sky is the default because the client cannot detect a shader your driver will not run. If the sky renders black, or the client fails to draw, come back here and pick Simple Sky.}" +
-			"\n" +
-			"\n$col[185,185,185]{Changing this recompiles the sky's shader, so expect a brief stutter.}", UI.scale(300));
 	private static final Object disableTreeAndBushSwayingTooltip = RichText.render("Trees and bushes will no longer move as if the wind is blowing them around." +
 			"\n" +
 			"\n$col[185,185,185]{Disabling swaying can improve your framerate.}", UI.scale(300));

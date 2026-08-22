@@ -47,7 +47,6 @@ import haven.render.sl.Uniform;
 import haven.render.sl.Type;
 import haven.res.ui.obj.buddy.Buddy;
 import haven.sprites.ChaseVectorSprite;
-import haven.sprites.sky.*;
 
 public class MapView extends PView implements DTarget, Console.Directory, PFListener {
     public static boolean clickdb = false;
@@ -1306,16 +1305,7 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
     private void amblight() {
 	synchronized(glob) {
 	    if(glob.lightamb != null) {
-		/* The sky debug clock moves the bearing, so the shadows keep
-		 * pointing away from the drawn sun at a fake hour. The elevation
-		 * and the three colours stay where the server put them, because
-		 * neither can be derived: ~/skyprobe.log has no lightelev sample
-		 * between 09:00 and 18:00, and the colours only ever arrive in
-		 * the light message. So a fake midnight leaves the ground lit for
-		 * the real hour, and SkyTimeWnd says so. See ADR-0022. */
-		Double fake = SkyTime.fake();
-		double lang = (fake != null) ? SkyTime.ang(fake) : glob.lightang;
-		amblight = new DirLight(glob.blightamb, glob.blightdif, glob.blightspc, Coord3f.o.sadd((float)glob.lightelev, (float)lang, 1f));
+		amblight = new DirLight(glob.blightamb, glob.blightdif, glob.blightspc, Coord3f.o.sadd((float)glob.lightelev, (float)glob.lightang, 1f));
 		amblight.prio(100);
 	    } else {
 		amblight = null;
@@ -1415,18 +1405,6 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 	}
 	for(RenderTree.Node rem : old)
 	    rweather.remove(rem).remove();
-    }
-
-    private void updsky() {
-	/* The palette is uniforms only -- SkyPalette.shader() is null -- so
-	 * replacing one with another never changes the shader macro set, and no
-	 * drop-then-set dance is needed to keep the programs in step. Only the
-	 * skybox option itself attaches and detaches. */
-	if(!Gob.skyenabled()) {
-	    basic(SkyPalette.class, null);
-	    return;
-	}
-	basic(SkyPalette.class, SkyPalette.from(glob));
     }
 
     public RenderTree.Slot drawadd(RenderTree.Node extra) {
@@ -2062,7 +2040,6 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 	amblight();
 	updsmap(amblight);
 	updweather();
-	updsky();
 	synchronized(glob.map) {
 	    terrain.tick();
 	    oltick();
@@ -3105,81 +3082,67 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 
     private Map<String, Console.Command> cmdmap = new TreeMap<String, Console.Command>();
     {
-//	cmdmap.put("cam", new Console.Command() {
-//		public void run(Console cons, String[] args) throws Exception {
-//		    if(args.length >= 2) {
-//			Class<? extends Camera> ct = camtypes.get(args[1]);
-//			String[] cargs = Utils.splice(args, 2);
-//			if(ct != null) {
-//				camera = makecam(ct, cargs);
-//				Utils.setpref("defcam", args[1]);
-//				Utils.setprefb("camargs", Utils.serialize(cargs));
-//			} else {
-//			    throw(new Exception("no such camera: " + args[1]));
-//			}
-//		    }
-//		}
-//	    });
-		// ND: Change the "cam" console command and prevent its use. Direct users to the options menu instead. Not everyone knows of console commands anyway.
-		cmdmap.put("cam", new Console.Command() {
-			public void run(Console cons, String[] args) throws Exception {
-				if (cameraConsoleCommandReplyMessage == 1) {
-					cameraConsoleCommandReplyMessage = 2;
-					throw (new Exception("Please use the Options menu to change the camera instead."));
-				}
-				else if (cameraConsoleCommandReplyMessage == 2) {
-					cameraConsoleCommandReplyMessage = 3;
-					throw (new Exception("No. I said use the Options menu to change the camera!"));
-				}
-				else if (cameraConsoleCommandReplyMessage == 3) {
-					cameraConsoleCommandReplyMessage = 4;
-					throw (new Exception("USE THE OPTIONS MENU TO CHANGE THE CAMERA!!!"));
-				}
-				else if (cameraConsoleCommandReplyMessage == 4) {
-					cameraConsoleCommandReplyMessage = 1;
-					throw (new Exception("I literally disabled this command in case you couldn't tell. Use the Options menu."));
-				}
-			}
-		});
-	cmdmap.put("whyload", new Console.Command() {
-		public void run(Console cons, String[] args) throws Exception {
-		    Loading l = lastload;
-		    if(l == null)
-			throw(new Exception("Not loading"));
-		    l.printStackTrace(cons.out);
+	cmdmap.put("cam", (cons, args) -> {
+	    if(args.length >= 2) {
+		Class<? extends Camera> ct = camtypes.get(args[1]);
+		String[] cargs = Utils.splice(args, 2);
+		if(ct != null) {
+		    camera = makecam(ct, cargs);
+		    Utils.setpref("defcam", args[1]);
+		    Utils.setprefb("camargs", Utils.serialize(cargs));
+		} else {
+		    throw(new Exception("no such camera: " + args[1]));
 		}
-	    });
+	    }
+	});
+        // ND: Change the "cam" console command and prevent its use. Direct users to the options menu instead. Not everyone knows of console commands anyway.
+        cmdmap.put("cam", (cons, args) -> {
+			if (cameraConsoleCommandReplyMessage == 1) {
+				cameraConsoleCommandReplyMessage = 2;
+				throw (new Exception("Please use the Options menu to change the camera instead."));
+			}
+			else if (cameraConsoleCommandReplyMessage == 2) {
+				cameraConsoleCommandReplyMessage = 3;
+				throw (new Exception("No. I said use the Options menu to change the camera!"));
+			}
+			else if (cameraConsoleCommandReplyMessage == 3) {
+				cameraConsoleCommandReplyMessage = 4;
+				throw (new Exception("USE THE OPTIONS MENU TO CHANGE THE CAMERA!!!"));
+			}
+			else if (cameraConsoleCommandReplyMessage == 4) {
+				cameraConsoleCommandReplyMessage = 1;
+				throw (new Exception("I literally disabled this command in case you couldn't tell. Use the Options menu."));
+			}
+        });
+	cmdmap.put("whyload", (cons, args) -> {
+	    Loading l = lastload;
+	    if(l == null)
+		throw(new Exception("Not loading"));
+	    l.printStackTrace(cons.out);
+	});
     }
     public Map<String, Console.Command> findcmds() {
 	return(cmdmap);
     }
 
     static {
-	Console.setscmd("placegrid", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    if((plobpgran = Double.parseDouble(args[1])) < 0)
-			plobpgran = 0;
-		    Utils.setprefd("plobpgran", plobpgran);
-		}
-	    });
-	Console.setscmd("placeangle", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    if((plobagran = Double.parseDouble(args[1])) < 2)
-			plobagran = 2;
-		    Utils.setprefd("plobagran", plobagran);
-		}
-	    });
-	Console.setscmd("clickfuzz", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    if((gobclfuzz = Integer.parseInt(args[1])) < 0)
-			gobclfuzz = 0;
-		}
-	    });
-	Console.setscmd("clickdb", new Console.Command() {
-		public void run(Console cons, String[] args) {
-		    clickdb = Utils.parsebool(args[1], false);
-		}
-	    });
+	Console.setscmd("placegrid", (cons, args) -> {
+	    if((plobpgran = Double.parseDouble(args[1])) < 0)
+		plobpgran = 0;
+	    Utils.setprefd("plobpgran", plobpgran);
+	});
+	Console.setscmd("placeangle", (cons, args) -> {
+	    if((plobagran = Double.parseDouble(args[1])) < 2)
+		plobagran = 2;
+	    Utils.setprefd("plobagran", plobagran);
+	});
+	Console.setscmd("clickfuzz", (cons, args) -> {
+	    if((gobclfuzz = Integer.parseInt(args[1])) < 0)
+		gobclfuzz = 0;
+	});
+	Console.setscmd("clickdb", (cons, args) -> {
+	    clickdb = Utils.parsebool(args[1], false);
+	});
     }
 
 	//ND: Using this "setcam" to change the camera in OptWnd.java. This depends on ui.gui inside Widget.java
