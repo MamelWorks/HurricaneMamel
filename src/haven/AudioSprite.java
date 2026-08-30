@@ -32,6 +32,13 @@ import haven.Audio.CS;
 
 public class AudioSprite {
 
+    // ND: Sounds that already have dedicated volume sliders in OptWnd (handled in the ClipSprite
+    // switch below) - excluded from the generic per-sound list so they aren't scaled twice.
+    private static final java.util.Set<String> HANDLED = new java.util.HashSet<>(java.util.Arrays.asList(
+        "sfx/borka/clap", "sfx/terobjs/quern", "sfx/squeak", "sfx/terobjs/grinder",
+        "sfx/borka/butcher", "sfx/items/hats/quack", "sfx/chip", "sfx/items/pickaxe",
+        "sfx/mineout", "sfx/swoosh", "sfx/items/bells", "sfx/creak", "sfx/terobjs/knarr",
+        "sfx/tiles/wstep"));
 
     public static List<Audio.Clip> clips(Resource res, String id) {
 	return(new ArrayList<>(res.layers(Audio.clip, clip -> clip.layerid().equals(id))));
@@ -115,6 +122,7 @@ public class AudioSprite {
                 stream = voladjust(stream, OptWnd.waterSplashSoundVolumeSlider);
                 break;
         }
+	    stream = HANDLED.contains(res.name) ? stream : SfxCustomVolume.adjust(stream, res.name);
 	    this.clip = new ActAudio.PosClip(new Audio.Monitor(stream) {
 		    protected void eof() {
 			super.eof();
@@ -173,7 +181,7 @@ public class AudioSprite {
 			return(clips.get((int)(Math.random() * clips.size())).stream());
 		    }
 		};
-	    this.clip = new ActAudio.PosClip(rep);
+	    this.clip = new ActAudio.PosClip(HANDLED.contains(res.name) ? rep : SfxCustomVolume.adjust(rep, res.name));
 	}
 
 	private void parts(RenderTree.Slot slot) {

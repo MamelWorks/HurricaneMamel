@@ -740,9 +740,17 @@ public class OptWnd extends Window {
             }
         }, rightColumn.pos("bl").adds(0, 2));
 
+        Widget sfxvolBtn;
+        add(sfxvolBtn = new Button(UI.scale(200), "Custom Sound Volumes...") {
+            public void click() {
+                SfxVolumeWindow.toggle(ui);
+            }
+        }, leftColumn.pos("bl").adds(0, 15).x(0));
+
         Widget backButton;
-        add(backButton = new PButton(UI.scale(200), "Back", 27, back, "Options            "), leftColumn.pos("bl").adds(0, 30).x(0));
+        add(backButton = new PButton(UI.scale(200), "Back", 27, back, "Options            "), sfxvolBtn.pos("bl").adds(0, 8).x(0));
         pack();
+        sfxvolBtn.move(new Coord(this.sz.x / 2 - sfxvolBtn.sz.x / 2, sfxvolBtn.c.y));
         centerBackButton(backButton, this);
 	}
     }
