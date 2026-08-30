@@ -288,8 +288,18 @@ public class FlowerMenu extends Widget {
     public boolean mousedown(MouseDownEvent ev) {
 	if(!anims.isEmpty())
 	    return(true);
-	if(!ev.propagate(this))
+	if(!ev.propagate(this)) {
+	    // ND: A click outside the petals closes this menu AND falls through to the map so the
+	    // same click also registers there - a right-click immediately opens a new flower menu on
+	    // whatever was right-clicked, a left-click walks/interacts at that spot - instead of just
+	    // being eaten to dismiss the menu. Dropping our grabs + returning false lets UI.dispatch
+	    // continue past this grab to the widget under the cursor (MapView), whose mousedown fires
+	    // a fresh interaction.
 	    choose(null);
+	    if(mg != null) mg.remove();
+	    if(kg != null) kg.remove();
+	    return(false);
+	}
 	return(true);
     }
 
