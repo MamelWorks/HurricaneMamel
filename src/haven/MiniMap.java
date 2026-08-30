@@ -1025,7 +1025,12 @@ public class MiniMap extends Widget {
 				String name;
 				if (GameUI.gobIdToKinName.containsKey(m.gobid)) {
 					name = GameUI.gobIdToKinName.get(m.gobid);
-					g.image(Text.renderstroked(name, Color.white, Color.BLACK, Text.num12boldFnd).tex(),p2cppc.add(-name.length()*4,-30));
+					Tex nmtex = DisplayMarker.titleTexMap.get(name); // ND: cache per name - was allocating a new GPU texture EVERY FRAME (VRAM leak -> whole-GPU stall)
+					if(nmtex == null) {
+						nmtex = Text.renderstroked(name, Color.white, Color.BLACK, Text.num12boldFnd).tex();
+						DisplayMarker.titleTexMap.put(name, nmtex);
+					}
+					g.image(nmtex, p2cppc.add(-name.length()*4,-30));
 				} else if (m.getgob() != null) {
 					Buddy buddyInfo = m.getgob().getattr(Buddy.class);
 					if (buddyInfo != null) {
@@ -1656,6 +1661,7 @@ public class MiniMap extends Widget {
 				} else {
 					biomeText = prettybiome(biome);
 				}
+				if(biometex != null) biometex.dispose(); // ND: dispose previous to avoid leaking a texture on each biome change
 				biometex = Text.renderstroked(biomeText).tex();
 			}
 		} catch (Loading ignored) {
