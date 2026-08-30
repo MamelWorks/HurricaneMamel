@@ -2391,6 +2391,10 @@ public class MapView extends PView implements DTarget, Console.Directory, PFList
 							}
 							return;
 						}
+						if (gres != null && ui.modshift && haven.automated.DepositMatchingToContainer.isContainer(gres.name)) {
+							new Thread(new haven.automated.DepositMatchingToContainer(ui.gui, gob), "DepositMatchingToContainer").start();
+							return;
+						}
 					} catch (Loading ignored) {}
 				}
 				if (clickb == 2 && ui.modshift && !ui.modctrl && !ui.modmeta && ui.gui != null) {
