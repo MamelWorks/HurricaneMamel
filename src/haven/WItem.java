@@ -311,6 +311,7 @@ public class WItem extends Widget implements DTarget {
 			g.aimage(item.stackQualityTex, new Coord(g.sz().x, 0), 0.95, 0.2);
 		}
 		drawDurabilityBars(g, sz);
+		drawStudyBar(g, sz);
 	} else {
 	    g.image(missing.layer(Resource.imgc).tex(), Coord.z, sz);
 	}
@@ -526,6 +527,23 @@ public class WItem extends Widget implements DTarget {
 				g.frect(new Coord(UI.scale(2), sz.y - h + UI.scale(1)), new Coord(UI.scale(3), h - UI.scale(2)));
 				g.chcolor();
 			}
+		}
+	}
+
+	// ND: Vertical bar (like the durability bar) on studying curios showing how much study time REMAINS.
+	// Full bar = just placed, drains to empty as it finishes. Distinct study-blue so it isn't mistaken for durability.
+	private void drawStudyBar(GOut g, Coord sz) {
+		double meter = meter();
+		if(meter > 0 && study.get() != null) { // only actively-studying curios
+			double remaining = Math.max(0, Math.min(1, 1.0 - meter));
+			int h = (int) (sz.y * remaining);
+			g.chcolor(Color.BLACK);
+			g.frect(new Coord(UI.scale(1), 0), new Coord(UI.scale(5), sz.y));
+			if(h > UI.scale(2)) {
+				g.chcolor(90, 170, 255, 255);
+				g.frect(new Coord(UI.scale(2), sz.y - h + UI.scale(1)), new Coord(UI.scale(3), h - UI.scale(2)));
+			}
+			g.chcolor();
 		}
 	}
 
