@@ -27,7 +27,7 @@ public class DepositMatchingToContainer implements Runnable {
     // Extend this if you find a container type that isn't picked up. Deliberately avoids bare
     // "box" so crafting stations like the steel box aren't caught.
     private static final String[] CONTAINER_NAMES = {
-        "cupboard", "chest", "crate", "coffer", "cabinet", "wardrobe", "basket", "trunk"
+        "cupboard", "chest", "crate", "coffer", "cabinet", "wardrobe", "basket", "trunk", "kist"
     };
 
     public DepositMatchingToContainer(GameUI gui, Gob gob) {
